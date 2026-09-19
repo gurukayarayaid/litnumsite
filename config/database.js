@@ -105,6 +105,11 @@ function initDatabase() {
     seedExercises();
   }
 
+  // Seed default students (Kelas 3)
+  if (count('students') === 0) {
+    seedStudents();
+  }
+
   console.log(`Database loaded: ${count('users')} users, ${count('students')} students, ${count('exercises')} exercises`);
 }
 
@@ -117,6 +122,50 @@ function seedExercises() {
   });
 
   console.log(`Seeded ${exercises.length} exercises from question bank`);
+}
+
+function seedStudents() {
+  const defaultStudents = [
+    { nis: '3262', name: 'ACHMAD DHAFIN KHALIF ALGHIFARI', class: '3' },
+    { nis: '3263', name: 'ALFIRA NAHDA RAFANDA', class: '3' },
+    { nis: '3264', name: 'ARSYILA ROMEESA FARZANA', class: '3' },
+    { nis: '3265', name: 'ASSYFA PUTRI NAURA ZASKIA', class: '3' },
+    { nis: '3266', name: 'ATIQAH FATIMATUS ZAHRA', class: '3' },
+    { nis: '3267', name: 'ELLVINO GAVRIEL ALVARO', class: '3' },
+    { nis: '3268', name: 'FALISA AMALIA PUTRI', class: '3' },
+    { nis: '3269', name: 'GIBRAN KEENANDRA ARDIANSYAH', class: '3' },
+    { nis: '3270', name: 'KANIA DWI NUR MAULIDDIAH', class: '3' },
+    { nis: '3271', name: 'MUHAMMAD ABDULLOH FADIL', class: '3' },
+    { nis: '3272', name: 'MUHAMMAD NATHAN HAFIZ PRADIPTA', class: '3' },
+    { nis: '3273', name: 'MUHAMMAD NAUFAL AL RAJABI', class: '3' },
+    { nis: '3274', name: 'MUHAMMAD RAKA ISLAMUDDIN', class: '3' },
+    { nis: '3275', name: 'MUHAMMAD RAKHA FATKHUL HALIM', class: '3' },
+    { nis: '3276', name: 'NAFISA AZZAHRA KHUSNANDAR', class: '3' },
+    { nis: '3277', name: 'NIKMATUL NISA', class: '3' },
+    { nis: '3278', name: 'OKTAVIA PUTRI GANESHA', class: '3' },
+    { nis: '3279', name: 'RAYSA NABILAH PUTRI', class: '3' },
+    { nis: '3280', name: 'RIKA ELVINA', class: '3' },
+    { nis: '3281', name: 'SAYYID MAULANA IBRAHIM', class: '3' },
+    { nis: '3282', name: 'TIKA ASSYIFAH ARRUM', class: '3' }
+  ];
+
+  defaultStudents.forEach(s => {
+    const hashedPassword = bcrypt.hashSync(s.nis, 10);
+    const user = insert('users', {
+      username: s.nis,
+      password: hashedPassword,
+      name: s.name,
+      role: 'siswa'
+    });
+    insert('students', {
+      user_id: user.id,
+      nis: s.nis,
+      full_name: s.name,
+      class: s.class
+    });
+  });
+
+  console.log(`Seeded ${defaultStudents.length} default students`);
 }
 
 module.exports = { getDb, initDatabase, saveDb, loadDb, find, filter, insert, update, remove, count, sum, nextId };

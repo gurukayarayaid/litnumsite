@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Detail Siswa - Literasi Numerasi</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="/js/firebase-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/db.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>Literasi Numerasi</h2>
+        <div class="subtitle">Panel Guru</div>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="/teacher/dashboard.html"><span class="icon">📊</span> Dashboard</a>
+        <a href="/teacher/students.html" class="active"><span class="icon">👥</span> Siswa</a>
+        <a href="/teacher/exercises.html"><span class="icon">📝</span> Soal</a>
+        <a href="/teacher/reports.html"><span class="icon">📈</span> Laporan</a>
+      </nav>
+      <div style="padding: 20px; margin-top: auto; border-top: 1px solid var(--border);">
+        <button class="btn btn-outline" style="width: 100%;" onclick="Auth.logout(); window.location.href='/login.html'">Keluar</button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <div class="page-header">
+        <div>
+          <a href="/teacher/students.html" class="btn btn-outline btn-sm" style="margin-bottom: 8px;">← Kembali ke Daftar Siswa</a>
+          <h1 id="studentName">Detail Siswa</h1>
+        </div>
+      </div>
+
+      <div id="loadingState" class="spinner"></div>
+      <div id="errorState" class="alert alert-danger" style="display: none;"></div>
+      <div id="contentState" style="display: none;">
+        <div class="stats-grid" id="statsGrid"></div>
+
+        <div class="card" style="margin-bottom: 24px;">
+          <div class="card-header">
+            <h3>Statistik per Kategori</h3>
+          </div>
+          <div class="table-container">
+            <table id="categoryTable">
+              <thead>
+                <tr>
+                  <th>Kategori</th>
+                  <th>Sub Kategori</th>
+                  <th>Total Soal</th>
+                  <th>Benar</th>
+                  <th>Akurasi</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 24px;">
+          <div class="card-header">
+            <h3>Level Kesulitan</h3>
+          </div>
+          <div id="difficultyGrid" class="stats-grid" style="margin-bottom: 0;"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Percobaan Terakhir</h3>
+          </div>
+          <div class="table-container">
+            <table id="attemptsTable">
+              <thead>
+                <tr>
+                  <th>Tanggal</th>
+                  <th>Kategori</th>
+                  <th>Sub Kategori</th>
+                  <th>Pertanyaan</th>
+                  <th>Jawaban Siswa</th>
+                  <th>Benar</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    if (!Auth.requireRole('guru')) throw new Error('Unauthorized');
+
+    var studentId = new URLSearchParams(window.location.search).get('id');
+
+    if (!studentId) {
+      document.getElementById('loadingState').style.display = 'none';
+      document.getElementById('errorState').style.display = 'block';
+      document.getElementById('errorState').textContent = 'ID siswa tidak ditemukan';
+    } else {
+      loadStudentDetail();
+    }
+
+    function loadStudentDetail() {
+      DB.getStudentDetail(studentId).then(function(data) {
+        document.getElementById('loadingState').style.display = 'none';
+
+        if (!data) {
+          document.getElementById('errorState').style.display = 'block';
+          document.getElementById('errorState').textContent = 'Siswa tidak ditemukan';
+          return;
+        }
+
+        document.getElementById('contentState').style.display = 'block';
+        document.getElementById('studentName').textContent = data.student.full_name;
+
+        document.getElementById('statsGrid').innerHTML =
+          '<div class="stat-card"><div class="stat-label">Total Percobaan</div><div class="stat-value text-primary">' + data.total_attempts + '</div></div>' +
+          '<div class="stat-card"><div class="stat-label">Benar</div><div class="stat-value text-success">' + data.correct_attempts + '</div></div>' +
+          '<div class="stat-card"><div class="stat-label">Akurasi</div><div class="stat-value ' + (data.accuracy >= 70 ? 'text-success' : data.accuracy >= 50 ? 'text-warning' : 'text-danger') + '">' + data.accuracy + '%</div></div>' +
+          '<div class="stat-card"><div class="stat-label">Kelas</div><div class="stat-value">' + (data.student.class || '-') + '</div></div>' +
+          '<div class="stat-card"><div class="stat-label">NIS</div><div class="stat-value">' + (data.student.nis || '-') + '</div></div>';
+
+        var catBody = document.querySelector('#categoryTable tbody');
+        catBody.innerHTML = '';
+        if (data.categoryStats.length === 0) {
+          catBody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--text-secondary);">Belum ada data</td></tr>';
+        } else {
+          data.categoryStats.forEach(function(cat) {
+            var badgeClass = cat.accuracy >= 70 ? 'badge-success' : cat.accuracy >= 50 ? 'badge-warning' : 'badge-danger';
+            catBody.innerHTML += '<tr>' +
+              '<td>' + cat.category + '</td>' +
+              '<td>' + cat.subcategory + '</td>' +
+              '<td>' + cat.total + '</td>' +
+              '<td>' + cat.correct + '</td>' +
+              '<td><span class="badge ' + badgeClass + '">' + cat.accuracy + '%</span></td>' +
+              '</tr>';
+          });
+        }
+
+        var diffGrid = document.getElementById('difficultyGrid');
+        var diffCounts = [0, 0, 0, 0, 0];
+        data.recentAttempts.forEach(function(a) {
+          if (a.difficulty >= 1 && a.difficulty <= 5) diffCounts[a.difficulty - 1]++;
+        });
+        var diffLabels = ['Sangat Mudah', 'Mudah', 'Sedang', 'Sulit', 'Sangat Sulit'];
+        var diffColors = ['text-success', 'text-success', 'text-primary', 'text-warning', 'text-danger'];
+        diffGrid.innerHTML = '';
+        for (var i = 0; i < 5; i++) {
+          diffGrid.innerHTML += '<div class="stat-card"><div class="stat-label">' + diffLabels[i] + '</div><div class="stat-value ' + diffColors[i] + '">' + diffCounts[i] + '</div></div>';
+        }
+
+        var attBody = document.querySelector('#attemptsTable tbody');
+        attBody.innerHTML = '';
+        if (data.recentAttempts.length === 0) {
+          attBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-secondary);">Belum ada percobaan</td></tr>';
+        } else {
+          data.recentAttempts.forEach(function(a) {
+            var date = new Date(a.created_at);
+            var dateStr = date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) + ' ' + date.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+            attBody.innerHTML += '<tr>' +
+              '<td>' + dateStr + '</td>' +
+              '<td>' + a.category + '</td>' +
+              '<td>' + a.subcategory + '</td>' +
+              '<td>' + (a.question.length > 50 ? a.question.substring(0, 50) + '...' : a.question) + '</td>' +
+              '<td>' + (a.student_answer || '-') + '</td>' +
+              '<td><span class="badge ' + (a.is_correct ? 'badge-success' : 'badge-danger') + '">' + (a.is_correct ? 'Benar' : 'Salah') + '</span></td>' +
+              '</tr>';
+          });
+        }
+      }).catch(function(error) {
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('errorState').style.display = 'block';
+        document.getElementById('errorState').textContent = 'Gagal memuat data: ' + error.message;
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kelola Soal - Literasi Numerasi</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="/js/firebase-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/db.js"></script>
+  <style>
+    .filter-bar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; align-items: center; }
+    .filter-bar .form-control { width: auto; min-width: 150px; }
+    .filter-bar input[type="text"] { min-width: 200px; }
+    .stats-bar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+    .stats-bar .stat-chip { background: var(--bg-card); border: 1px solid var(--border); border-radius: 20px; padding: 6px 14px; font-size: 0.8rem; }
+    .stats-bar .stat-chip strong { color: var(--primary); }
+    .exercise-type-badge { font-size: 0.7rem; padding: 2px 6px; border-radius: 8px; background: #f1f5f9; color: var(--text-secondary); margin-left: 6px; }
+    .select-all-row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 0.85rem; color: var(--text-secondary); }
+    .select-all-row input { cursor: pointer; }
+    .exercise-options-preview { background: var(--bg); border-radius: var(--radius); padding: 12px; margin-top: 8px; }
+    .exercise-options-preview p { margin: 4px 0; font-size: 0.85rem; }
+    .exercise-options-preview .correct-option { color: var(--success); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>Literasi Numerasi</h2>
+        <div class="subtitle">Panel Guru</div>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="/teacher/dashboard.html"><span class="icon">📊</span> Dashboard</a>
+        <a href="/teacher/students.html"><span class="icon">👥</span> Siswa</a>
+        <a href="/teacher/exercises.html" class="active"><span class="icon">📝</span> Soal</a>
+        <a href="/teacher/reports.html"><span class="icon">📈</span> Laporan</a>
+      </nav>
+      <div style="padding: 20px; margin-top: auto; border-top: 1px solid var(--border);">
+        <button class="btn btn-outline" style="width: 100%;" onclick="Auth.logout(); window.location.href='/login.html'">Keluar</button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <div class="page-header">
+        <h1>Kelola Soal</h1>
+        <button class="btn btn-primary" onclick="openModal()">+ Tambah Soal</button>
+      </div>
+
+      <div class="stats-bar" id="statsBar"></div>
+
+      <div class="card no-print">
+        <div class="filter-bar">
+          <select id="filterCategory" class="form-control" onchange="loadExercises()">
+            <option value="">Semua Kategori</option>
+            <option value="Membaca">Membaca</option>
+            <option value="Menulis">Menulis</option>
+            <option value="Berhitung">Berhitung</option>
+          </select>
+          <select id="filterType" class="form-control" onchange="loadExercises()">
+            <option value="">Semua Tipe</option>
+            <option value="pilihan_ganda">Pilihan Ganda</option>
+            <option value="isian">Isian</option>
+          </select>
+          <select id="filterDifficulty" class="form-control" onchange="loadExercises()">
+            <option value="">Semua Level</option>
+            <option value="1">Level 1 - Sangat Mudah</option>
+            <option value="2">Level 2 - Mudah</option>
+            <option value="3">Level 3 - Sedang</option>
+            <option value="4">Level 4 - Sulit</option>
+            <option value="5">Level 5 - Sangat Sulit</option>
+          </select>
+          <input type="text" id="filterSearch" class="form-control" placeholder="Cari soal..." oninput="debounceSearch()">
+          <button class="btn btn-danger btn-sm" id="bulkDeleteBtn" style="display: none;" onclick="bulkDelete()">🗑 Hapus Terpilih</button>
+        </div>
+
+        <div class="select-all-row" id="selectAllRow" style="display: none;">
+          <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
+          <label for="selectAll">Pilih Semua (<span id="selectedCount">0</span> terpilih)</label>
+        </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:30px;"><input type="checkbox" id="selectAllTh" style="display:none;" onchange="toggleSelectAll()"></th>
+                <th>Pertanyaan</th>
+                <th>Kategori</th>
+                <th>Tipe</th>
+                <th>Level</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody id="exerciseList"></tbody>
+          </table>
+        </div>
+
+        <div id="emptyState" class="empty-state" style="display: none;">
+          <div class="icon">📝</div>
+          <p>Belum ada soal. Klik "Tambah Soal" untuk membuat soal baru.</p>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-overlay" id="formModal">
+    <div class="modal" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3 id="modalTitle">Tambah Soal</h3>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="editId">
+        <div class="form-group">
+          <label>Kategori</label>
+          <select id="formCategory" class="form-control" onchange="updateSubcategories()" required>
+            <option value="">Pilih Kategori</option>
+            <option value="Membaca">Membaca</option>
+            <option value="Menulis">Menulis</option>
+            <option value="Berhitung">Berhitung</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Sub Kategori</label>
+          <select id="formSubcategory" class="form-control" required>
+            <option value="">Pilih Sub Kategori</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Tipe Soal</label>
+          <select id="formType" class="form-control" onchange="toggleOptionsField()" required>
+            <option value="pilihan_ganda">Pilihan Ganda</option>
+            <option value="isian">Isian</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Level Kesulitan</label>
+          <select id="formDifficulty" class="form-control" required>
+            <option value="1">1 - Sangat Mudah</option>
+            <option value="2">2 - Mudah</option>
+            <option value="3" selected>3 - Sedang</option>
+            <option value="4">4 - Sulit</option>
+            <option value="5">5 - Sangat Sulit</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Pertanyaan</label>
+          <textarea id="formQuestion" class="form-control" rows="3" placeholder="Masukkan pertanyaan soal" required></textarea>
+        </div>
+        <div class="form-group" id="optionsGroup">
+          <label>Pilihan Jawaban (pisahkan dengan ;)</label>
+          <input type="text" id="formOptions" class="form-control" placeholder="Contoh: A. Jawaban 1; B. Jawaban 2; C. Jawaban 3; D. Jawaban 4">
+        </div>
+        <div class="form-group">
+          <label id="answerLabel">Jawaban Benar</label>
+          <input type="text" id="formAnswer" class="form-control" placeholder="Masukkan jawaban benar" required>
+        </div>
+        <div class="form-group">
+          <label>Penjelasan</label>
+          <textarea id="formExplanation" class="form-control" rows="2" placeholder="Penjelasan jawaban (opsional)"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal()">Batal</button>
+        <button class="btn btn-primary" onclick="saveExercise()" id="saveBtn">Simpan</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="detailModal">
+    <div class="modal" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3>Detail Soal</h3>
+        <button class="modal-close" onclick="closeDetailModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="detailContent"></div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeDetailModal()">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    if (!Auth.requireRole('guru')) throw new Error('Unauthorized');
+
+    var allExercises = [];
+    var selectedIds = new Set();
+    var searchTimeout = null;
+
+    var subcategories = {
+      'Membaca': ['Memahami Teks', 'Mencari Informasi', 'Menarik Kesimpulan', 'Menginterpretasi', 'Vocabulary'],
+      'Menulis': ['Menulis Paragraf', 'Menulis Kalimat', 'Menulis Cerita', 'Menulis Laporan', 'Ejaan'],
+      'Berhitung': ['Penjumlahan', 'Pengurangan', 'Perkalian', 'Pecahan', 'Pengukuran', 'Perbandingan']
+    };
+
+    function updateSubcategories() {
+      var category = document.getElementById('formCategory').value;
+      var subSelect = document.getElementById('formSubcategory');
+      subSelect.innerHTML = '<option value="">Pilih Sub Kategori</option>';
+      if (subcategories[category]) {
+        subcategories[category].forEach(function(sub) {
+          var option = document.createElement('option');
+          option.value = sub;
+          option.textContent = sub;
+          subSelect.appendChild(option);
+        });
+      }
+    }
+
+    function toggleOptionsField() {
+      var type = document.getElementById('formType').value;
+      var optionsGroup = document.getElementById('optionsGroup');
+      var answerLabel = document.getElementById('answerLabel');
+      if (type === 'isian') {
+        optionsGroup.style.display = 'none';
+        answerLabel.textContent = 'Jawaban Benar';
+      } else {
+        optionsGroup.style.display = 'block';
+        answerLabel.textContent = 'Jawaban Benar (contoh: A atau teks jawaban)';
+      }
+    }
+
+    function loadExercises() {
+      var filters = {
+        category: document.getElementById('filterCategory').value,
+        type: document.getElementById('filterType').value,
+        difficulty: document.getElementById('filterDifficulty').value,
+        search: document.getElementById('filterSearch').value
+      };
+
+      DB.getAllExercises(filters).then(function(result) {
+        allExercises = result.exercises;
+        selectedIds.clear();
+        updateBulkUI();
+        renderStats(result);
+        renderList(result.exercises);
+      }).catch(function(error) {
+        alert('Gagal memuat soal: ' + error.message);
+      });
+    }
+
+    function renderStats(result) {
+      var bar = document.getElementById('statsBar');
+      var html = '<div class="stat-chip">Total: <strong>' + result.total + '</strong></div>';
+      Object.keys(result.byCategory).forEach(function(cat) {
+        html += '<div class="stat-chip">' + cat + ': <strong>' + result.byCategory[cat] + '</strong></div>';
+      });
+      bar.innerHTML = html;
+    }
+
+    function renderList(exercises) {
+      var tbody = document.getElementById('exerciseList');
+      var empty = document.getElementById('emptyState');
+      var selectRow = document.getElementById('selectAllRow');
+      var selectTh = document.getElementById('selectAllTh');
+
+      if (exercises.length === 0) {
+        tbody.innerHTML = '';
+        empty.style.display = 'block';
+        selectRow.style.display = 'none';
+        selectTh.style.display = 'none';
+        return;
+      }
+
+      empty.style.display = 'none';
+      selectRow.style.display = 'flex';
+      selectTh.style.display = 'block';
+
+      var categoryBadge = {
+        'Membaca': 'category-membaca',
+        'Menulis': 'category-menulis',
+        'Berhitung': 'category-berhitung'
+      };
+
+      var html = '';
+      exercises.forEach(function(ex) {
+        var questionPreview = ex.question.length > 80 ? ex.question.substring(0, 80) + '...' : ex.question;
+        var typeLabel = ex.type === 'pilihan_ganda' ? 'Pilihan Ganda' : 'Isian';
+        var diffDots = '';
+        for (var i = 1; i <= 5; i++) {
+          diffDots += '<div class="difficulty-dot' + (i <= ex.difficulty ? ' active' : '') + '"></div>';
+        }
+
+        html += '<tr>' +
+          '<td><input type="checkbox" class="exercise-check" data-id="' + ex.id + '" onchange="toggleSelect(\'' + ex.id + '\')" ' + (selectedIds.has(ex.id) ? 'checked' : '') + '></td>' +
+          '<td>' + questionPreview + '</td>' +
+          '<td><span class="question-category ' + (categoryBadge[ex.category] || '') + '">' + ex.category + '</span></td>' +
+          '<td>' + typeLabel + '</td>' +
+          '<td><div class="difficulty-dots">' + diffDots + '</div></td>' +
+          '<td>' +
+          '<button class="btn btn-outline btn-sm" onclick="viewDetail(\'' + ex.id + '\')" title="Lihat Detail">👁</button> ' +
+          '<button class="btn btn-outline btn-sm" onclick="editExercise(\'' + ex.id + '\')" title="Edit">✏️</button> ' +
+          '<button class="btn btn-danger btn-sm" onclick="deleteSingle(\'' + ex.id + '\')" title="Hapus">🗑</button>' +
+          '</td></tr>';
+      });
+      tbody.innerHTML = html;
+    }
+
+    function toggleSelect(id) {
+      if (selectedIds.has(id)) {
+        selectedIds.delete(id);
+      } else {
+        selectedIds.add(id);
+      }
+      updateBulkUI();
+    }
+
+    function toggleSelectAll() {
+      var check = document.getElementById('selectAll').checked;
+      document.getElementById('selectAllTh').checked = check;
+      selectedIds.clear();
+      if (check) {
+        allExercises.forEach(function(ex) { selectedIds.add(ex.id); });
+      }
+      document.querySelectorAll('.exercise-check').forEach(function(cb) { cb.checked = check; });
+      updateBulkUI();
+    }
+
+    function updateBulkUI() {
+      document.getElementById('selectedCount').textContent = selectedIds.size;
+      document.getElementById('bulkDeleteBtn').style.display = selectedIds.size > 0 ? 'inline-flex' : 'none';
+    }
+
+    function debounceSearch() {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(loadExercises, 300);
+    }
+
+    function openModal(id) {
+      document.getElementById('editId').value = '';
+      document.getElementById('modalTitle').textContent = 'Tambah Soal';
+      document.getElementById('formCategory').value = '';
+      document.getElementById('formSubcategory').innerHTML = '<option value="">Pilih Sub Kategori</option>';
+      document.getElementById('formType').value = 'pilihan_ganda';
+      document.getElementById('formDifficulty').value = '3';
+      document.getElementById('formQuestion').value = '';
+      document.getElementById('formOptions').value = '';
+      document.getElementById('formAnswer').value = '';
+      document.getElementById('formExplanation').value = '';
+      toggleOptionsField();
+      document.getElementById('formModal').classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('formModal').classList.remove('active');
+    }
+
+    function editExercise(id) {
+      var ex = allExercises.find(function(e) { return e.id === id; });
+      if (!ex) return;
+
+      document.getElementById('editId').value = id;
+      document.getElementById('modalTitle').textContent = 'Edit Soal';
+      document.getElementById('formCategory').value = ex.category;
+      updateSubcategories();
+      document.getElementById('formSubcategory').value = ex.subcategory || '';
+      document.getElementById('formType').value = ex.type || 'pilihan_ganda';
+      document.getElementById('formDifficulty').value = ex.difficulty || 3;
+      document.getElementById('formQuestion').value = ex.question || '';
+      document.getElementById('formOptions').value = (ex.options || []).join('; ');
+      document.getElementById('formAnswer').value = ex.answer || '';
+      document.getElementById('formExplanation').value = ex.explanation || '';
+      toggleOptionsField();
+      document.getElementById('formModal').classList.add('active');
+    }
+
+    function saveExercise() {
+      var editId = document.getElementById('editId').value;
+      var category = document.getElementById('formCategory').value;
+      var subcategory = document.getElementById('formSubcategory').value;
+      var type = document.getElementById('formType').value;
+      var difficulty = parseInt(document.getElementById('formDifficulty').value);
+      var question = document.getElementById('formQuestion').value.trim();
+      var answer = document.getElementById('formAnswer').value.trim();
+      var explanation = document.getElementById('formExplanation').value.trim();
+      var optionsRaw = document.getElementById('formOptions').value.trim();
+
+      if (!category || !subcategory || !question || !answer) {
+        alert('Harap isi semua field yang diperlukan');
+        return;
+      }
+
+      var data = {
+        category: category,
+        subcategory: subcategory,
+        type: type,
+        difficulty: difficulty,
+        question: question,
+        answer: answer,
+        explanation: explanation
+      };
+
+      if (type === 'pilihan_ganda' && optionsRaw) {
+        data.options = optionsRaw.split(';').map(function(o) { return o.trim(); }).filter(function(o) { return o; });
+      }
+
+      document.getElementById('saveBtn').disabled = true;
+      document.getElementById('saveBtn').textContent = 'Menyimpan...';
+
+      DB.saveExercise(data, editId || null).then(function() {
+        closeModal();
+        loadExercises();
+      }).catch(function(error) {
+        alert('Gagal menyimpan: ' + error.message);
+      }).finally(function() {
+        document.getElementById('saveBtn').disabled = false;
+        document.getElementById('saveBtn').textContent = 'Simpan';
+      });
+    }
+
+    function deleteSingle(id) {
+      if (!confirm('Yakin ingin menghapus soal ini? Percobaan siswa terkait juga akan dihapus.')) return;
+      DB.deleteExercise(id).then(function() {
+        loadExercises();
+      }).catch(function(error) {
+        alert('Gagal menghapus: ' + error.message);
+      });
+    }
+
+    function bulkDelete() {
+      if (selectedIds.size === 0) return;
+      if (!confirm('Yakin ingin menghapus ' + selectedIds.size + ' soal yang dipilih? Percobaan siswa terkait juga akan dihapus.')) return;
+      var ids = Array.from(selectedIds);
+      DB.bulkDeleteExercises(ids).then(function() {
+        selectedIds.clear();
+        updateBulkUI();
+        loadExercises();
+      }).catch(function(error) {
+        alert('Gagal menghapus: ' + error.message);
+      });
+    }
+
+    function viewDetail(id) {
+      var ex = allExercises.find(function(e) { return e.id === id; });
+      if (!ex) return;
+
+      var categoryBadge = {
+        'Membaca': 'category-membaca',
+        'Menulis': 'category-menulis',
+        'Berhitung': 'category-berhitung'
+      };
+
+      var diffDots = '';
+      for (var i = 1; i <= 5; i++) {
+        diffDots += '<div class="difficulty-dot' + (i <= ex.difficulty ? ' active' : '') + '"></div>';
+      }
+
+      var html = '<div style="margin-bottom:12px;">' +
+        '<span class="question-category ' + (categoryBadge[ex.category] || '') + '">' + ex.category + '</span> ' +
+        '<span class="exercise-type-badge">' + (ex.type === 'pilihan_ganda' ? 'Pilihan Ganda' : 'Isian') + '</span>' +
+        '</div>' +
+        '<div style="margin-bottom:8px; font-size:0.85rem; color:var(--text-secondary);">Sub Kategori: ' + (ex.subcategory || '-') + '</div>' +
+        '<div style="margin-bottom:8px; font-size:0.85rem; color:var(--text-secondary);">Level Kesulitan: <div class="difficulty-dots" style="display:inline-flex; vertical-align:middle;">' + diffDots + '</div></div>' +
+        '<div class="question-text">' + ex.question + '</div>';
+
+      if (ex.type === 'pilihan_ganda' && ex.options && ex.options.length > 0) {
+        html += '<div class="exercise-options-preview">';
+        ex.options.forEach(function(opt) {
+          var isCorrect = opt === ex.answer || opt.startsWith(ex.answer + '.') || opt.toLowerCase() === ex.answer.toLowerCase();
+          html += '<p class="' + (isCorrect ? 'correct-option' : '') + '">' + opt + (isCorrect ? ' ✓' : '') + '</p>';
+        });
+        html += '</div>';
+      }
+
+      html += '<div style="margin-top:12px; padding:10px; background:#dcfce7; border-radius:var(--radius);">' +
+        '<strong style="color:#166534;">Jawaban Benar:</strong> <span style="color:#166534;">' + ex.answer + '</span></div>';
+
+      if (ex.explanation) {
+        html += '<div style="margin-top:8px; padding:10px; background:#dbeafe; border-radius:var(--radius); font-size:0.9rem;">' +
+          '<strong>Penjelasan:</strong> ' + ex.explanation + '</div>';
+      }
+
+      document.getElementById('detailContent').innerHTML = html;
+      document.getElementById('detailModal').classList.add('active');
+    }
+
+    function closeDetailModal() {
+      document.getElementById('detailModal').classList.remove('active');
+    }
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') {
+        closeModal();
+        closeDetailModal();
+      }
+    });
+
+    loadExercises();
+  </script>
+</body>
+</html>

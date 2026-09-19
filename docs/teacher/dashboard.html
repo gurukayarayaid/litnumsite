@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Guru - Literasi Numerasi</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="/js/firebase-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/db.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>Literasi Numerasi</h2>
+        <div class="subtitle">Panel Guru</div>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="/teacher/dashboard.html" class="active">
+          <span class="icon">Dashboard</span>
+        </a>
+        <a href="/teacher/students.html">
+          <span class="icon">Murid</span>
+        </a>
+        <a href="/teacher/exercises.html">
+          <span class="icon">Soal</span>
+        </a>
+        <a href="/teacher/reports.html">
+          <span class="icon">Laporan</span>
+        </a>
+        <a href="#" onclick="handleLogout()">
+          <span class="icon">Keluar</span>
+        </a>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <div class="page-header">
+        <h1>Dashboard Guru</h1>
+        <div class="no-print">
+          <button class="btn btn-outline" onclick="location.reload()">Refresh</button>
+        </div>
+      </div>
+
+      <div id="stats-container">
+        <div class="spinner"></div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin-top: 24px;">
+        <div class="card">
+          <div class="card-header">
+            <h3>Aktivitas Terbaru</h3>
+          </div>
+          <div id="recent-activity">
+            <div class="spinner"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Statistik per Kategori</h3>
+          </div>
+          <div id="category-stats">
+            <div class="spinner"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 20px;">
+        <div class="card-header">
+          <h3>Murid yang Perlu Perhatian</h3>
+          <a href="/teacher/students.html" class="btn btn-sm btn-outline">Lihat Semua</a>
+        </div>
+        <div id="weak-students">
+          <div class="spinner"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 20px;">
+        <div class="card-header">
+          <h3>Backup & Restore</h3>
+        </div>
+        <div style="padding: 16px;">
+          <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <button class="btn btn-outline" onclick="downloadBackup()">Download Backup</button>
+            <button class="btn btn-outline" onclick="showRestoreModal()">Restore Database</button>
+          </div>
+          <div id="backup-alert" style="margin-top: 12px;"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Restore Modal -->
+  <div class="modal-overlay" id="restore-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Restore Database</h3>
+        <button class="modal-close" onclick="closeRestoreModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-warning">
+          Peringatan: Semua data saat ini akan diganti dengan data dari file backup!
+        </div>
+        <form id="restore-form" onsubmit="restoreDatabase(event)">
+          <div class="form-group">
+            <label>Pilih File Backup (.json)</label>
+            <input type="file" id="backup-file" class="form-control" accept=".json" required>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeRestoreModal()">Batal</button>
+        <button class="btn btn-danger" onclick="document.getElementById('restore-form').requestSubmit()">Restore</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    if (!Auth.requireRole('guru')) {
+      throw new Error('Unauthorized');
+    }
+
+    const user = Auth.getUser();
+
+    async function loadDashboard() {
+      try {
+        const data = await DB.getTeacherDashboard();
+
+        document.getElementById('stats-container').innerHTML = `
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-label">Total Murid</div>
+              <div class="stat-value text-primary">${data.totalStudents}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Latihan Hari Ini</div>
+              <div class="stat-value text-success">${data.todayStats.attempts}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Benar Hari Ini</div>
+              <div class="stat-value text-success">${data.todayStats.correct}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Akurasi Hari Ini</div>
+              <div class="stat-value ${data.todayStats.accuracy >= 70 ? 'text-success' : 'text-warning'}">${data.todayStats.accuracy}%</div>
+            </div>
+          </div>
+        `;
+
+        if (data.recentAttempts.length === 0) {
+          document.getElementById('recent-activity').innerHTML =
+            '<div class="empty-state"><div class="icon">&#x1F4DD;</div><p>Belum ada aktivitas</p></div>';
+        } else {
+          var rows = data.recentAttempts.map(function(a) {
+            return '<tr>' +
+              '<td>' + a.student_name + '</td>' +
+              '<td><span class="badge badge-primary">' + a.category + '</span></td>' +
+              '<td>' + a.subcategory + '</td>' +
+              '<td><span class="badge ' + (a.is_correct ? 'badge-success' : 'badge-danger') + '">' + (a.is_correct ? 'Benar' : 'Salah') + '</span></td>' +
+              '<td>' + new Date(a.created_at).toLocaleString('id') + '</td>' +
+            '</tr>';
+          }).join('');
+
+          document.getElementById('recent-activity').innerHTML =
+            '<div class="table-container">' +
+              '<table>' +
+                '<thead>' +
+                  '<tr><th>Murid</th><th>Kategori</th><th>Sub</th><th>Hasil</th><th>Waktu</th></tr>' +
+                '</thead>' +
+                '<tbody>' + rows + '</tbody>' +
+              '</table>' +
+            '</div>';
+        }
+
+        if (data.categoryStats.length === 0) {
+          document.getElementById('category-stats').innerHTML =
+            '<div class="empty-state"><p>Belum ada data</p></div>';
+        } else {
+          var catRows = data.categoryStats.map(function(s) {
+            return '<div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border);">' +
+              '<div>' +
+                '<div style="font-size: 0.85rem; font-weight: 500;">' + s.category + '</div>' +
+                '<div style="font-size: 0.75rem; color: var(--text-secondary);">' + s.subcategory + '</div>' +
+              '</div>' +
+              '<div style="text-align: right;">' +
+                '<div style="font-size: 0.85rem; font-weight: 600; color: ' + (s.accuracy >= 70 ? 'var(--success)' : 'var(--danger)') + ';">' + s.accuracy + '%</div>' +
+                '<div style="font-size: 0.7rem; color: var(--text-secondary);">' + s.correct_attempts + '/' + s.total_attempts + '</div>' +
+              '</div>' +
+            '</div>';
+          }).join('');
+
+          document.getElementById('category-stats').innerHTML = catRows;
+        }
+
+        if (data.weakStudents.length === 0) {
+          document.getElementById('weak-students').innerHTML =
+            '<div class="empty-state"><div class="icon">&#x2728;</div><p>Semua murid dalam kondisi baik</p></div>';
+        } else {
+          var weakRows = data.weakStudents.map(function(s) {
+            return '<tr>' +
+              '<td>' +
+                '<div style="display: flex; align-items: center; gap: 10px;">' +
+                  '<div class="avatar">' + s.full_name.charAt(0) + '</div>' +
+                  '<div>' +
+                    '<div style="font-weight: 500;">' + s.full_name + '</div>' +
+                    '<div style="font-size: 0.75rem; color: var(--text-secondary);">NIS: ' + s.nis + '</div>' +
+                  '</div>' +
+                '</div>' +
+              '</td>' +
+              '<td><span class="badge badge-danger">' + s.accuracy + '%</span></td>' +
+              '<td>' + s.total_attempts + ' soal</td>' +
+              '<td><a href="/teacher/student-detail.html?id=' + s.id + '" class="btn btn-sm btn-primary">Lihat Detail</a></td>' +
+            '</tr>';
+          }).join('');
+
+          document.getElementById('weak-students').innerHTML =
+            '<div class="table-container">' +
+              '<table>' +
+                '<thead><tr><th>Murid</th><th>Akurasi</th><th>Total Soal</th><th>Aksi</th></tr></thead>' +
+                '<tbody>' + weakRows + '</tbody>' +
+              '</table>' +
+            '</div>';
+        }
+      } catch (err) {
+        document.getElementById('stats-container').innerHTML =
+          '<div class="alert alert-danger">Gagal memuat data dashboard</div>';
+      }
+    }
+
+    function handleLogout() {
+      Auth.logout();
+      window.location.href = '/login.html';
+    }
+
+    async function downloadBackup() {
+      try {
+        showBackupAlert('Sedang menyiapkan backup...', 'info');
+        const data = await DB.backup();
+        var blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'backup-litnum-' + new Date().toISOString().split('T')[0] + '.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        showBackupAlert('Backup berhasil didownload', 'success');
+      } catch (err) {
+        showBackupAlert('Gagal download backup', 'danger');
+      }
+    }
+
+    function showRestoreModal() {
+      document.getElementById('restore-modal').classList.add('active');
+    }
+
+    function closeRestoreModal() {
+      document.getElementById('restore-modal').classList.remove('active');
+      document.getElementById('backup-file').value = '';
+    }
+
+    function showBackupAlert(message, type) {
+      document.getElementById('backup-alert').innerHTML =
+        '<div class="alert alert-' + type + '">' + message + '</div>';
+      setTimeout(function() { document.getElementById('backup-alert').innerHTML = ''; }, 3000);
+    }
+
+    async function restoreDatabase(e) {
+      e.preventDefault();
+      var fileInput = document.getElementById('backup-file');
+      if (!fileInput.files.length) return;
+
+      if (!confirm('Yakin ingin restore database? Semua data saat ini akan diganti!')) return;
+
+      try {
+        showBackupAlert('Sedang restore database...', 'info');
+        var text = await fileInput.files[0].text();
+        var data = JSON.parse(text);
+        await DB.restore(data);
+        showBackupAlert('Database berhasil direstore', 'success');
+        closeRestoreModal();
+        loadDashboard();
+      } catch (err) {
+        showBackupAlert('Gagal restore database: ' + err.message, 'danger');
+      }
+    }
+
+    loadDashboard();
+  </script>
+</body>
+</html>

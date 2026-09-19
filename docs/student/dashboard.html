@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Siswa - Literasi Numerasi</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="/js/firebase-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/db.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>Literasi Numerasi</h2>
+        <div class="subtitle">Halo, <span id="student-name">Siswa</span></div>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="/student/dashboard.html" class="active"><span class="icon">Dashboard</span></a>
+        <a href="/student/exercise.html"><span class="icon">Latihan</span></a>
+        <a href="/student/progress.html"><span class="icon">Progres</span></a>
+        <a href="#" onclick="Auth.logout(); window.location.href='/login.html';"><span class="icon">Keluar</span></a>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <div class="page-header">
+        <h1>Selamat Datang!</h1>
+      </div>
+
+      <div id="dashboard-content">
+        <div class="spinner"></div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    if (!Auth.requireRole('siswa')) throw new Error('Unauthorized');
+
+    const user = Auth.getUser();
+    document.getElementById('student-name').textContent = user.name;
+
+    async function loadDashboard() {
+      try {
+        const data = await DB.getStudentDashboard(user.studentId);
+
+        let html = `
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-label">Total Latihan</div>
+              <div class="stat-value text-primary">${data.totalAttempts}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Jawaban Benar</div>
+              <div class="stat-value text-success">${data.correctAttempts}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Akurasi</div>
+              <div class="stat-value ${data.accuracy >= 70 ? 'text-success' : data.accuracy >= 50 ? 'text-warning' : 'text-danger'}">${data.accuracy}%</div>
+            </div>
+          </div>
+        `;
+
+        // Category cards
+        html += '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 24px;">';
+
+        const categories = [
+          { id: 'membaca', name: 'Membaca', icon: '📖', color: '#3b82f6' },
+          { id: 'menulis', name: 'Menulis', icon: '✍️', color: '#ec4899' },
+          { id: 'berhitung', name: 'Berhitung', icon: '🔢', color: '#22c55e' }
+        ];
+
+        categories.forEach(function(cat) {
+          const stats = data.categoryStats.find(function(s) { return s.category === cat.id; });
+          const accuracy = stats ? stats.accuracy : 0;
+          const attempts = stats ? stats.total : 0;
+
+          html += `
+            <div class="card" style="cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='translateY(-2px)'" onmouseout="this.style.transform='none'" onclick="startCategoryExercise('${cat.id}')">
+              <div style="font-size: 2rem; margin-bottom: 8px;">${cat.icon}</div>
+              <h3 style="margin-bottom: 4px;">${cat.name}</h3>
+              <div style="font-size: 0.85rem; color: var(--text-secondary);">${attempts} soal dikerjakan</div>
+              <div style="margin-top: 8px;">
+                <div class="progress-bar"><div class="progress-fill" style="width: ${accuracy}%; background: ${cat.color};"></div></div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 4px;">${accuracy}% benar</div>
+              </div>
+            </div>
+          `;
+        });
+        html += '</div>';
+
+        // Quick start button
+        html += `
+          <div class="card" style="margin-top: 24px; text-align: center; padding: 30px;">
+            <h3 style="margin-bottom: 12px;">Mulai Latihan Sekarang!</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 16px;">Soal akan menyesuaikan dengan kemampuanmu</p>
+            <a href="/student/exercise.html" class="btn btn-primary" style="padding: 12px 32px; font-size: 1.1rem;">Mulai Latihan</a>
+          </div>
+        `;
+
+        // Recent activity
+        if (data.recentAttempts.length > 0) {
+          html += '<div class="card" style="margin-top: 24px;"><div class="card-header"><h3>Latihan Terakhir</h3></div>';
+
+          data.recentAttempts.forEach(function(a) {
+            html += `
+              <div style="display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border);">
+                <div class="avatar" style="background: ${a.is_correct ? '#dcfce7' : '#fee2e2'}; color: ${a.is_correct ? '#166534' : '#991b1b'};">${a.is_correct ? '✓' : '✗'}</div>
+                <div style="flex: 1;">
+                  <div style="font-size: 0.9rem; font-weight: 500;">${a.question}</div>
+                  <div style="font-size: 0.75rem; color: var(--text-secondary);">${a.category} - ${a.subcategory}</div>
+                </div>
+              </div>
+            `;
+          });
+
+          html += '</div>';
+        }
+
+        // Weekly activity
+        if (data.weeklyActivity.length > 0) {
+          html += '<div class="card" style="margin-top: 24px;"><div class="card-header"><h3>Aktivitas Minggu Ini</h3></div><div style="display: flex; gap: 8px; padding: 16px; flex-wrap: wrap;">';
+
+          var days = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+          var today = new Date();
+          for (var i = 6; i >= 0; i--) {
+            var date = new Date(today);
+            date.setDate(date.getDate() - i);
+            var dateStr = date.toISOString().split('T')[0];
+            var activity = data.weeklyActivity.find(function(a) { return a.date === dateStr; });
+            var dayName = days[date.getDay()];
+            var hasActivity = activity && activity.attempts > 0;
+
+            html += `
+              <div style="text-align: center; min-width: 50px;">
+                <div style="font-size: 0.7rem; color: var(--text-secondary);">${dayName}</div>
+                <div style="width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin: 4px auto; background: ${hasActivity ? '#dcfce7' : '#f1f5f9'}; color: ${hasActivity ? '#166534' : '#94a3b8'}; font-weight: 600; font-size: 0.85rem;">
+                  ${activity ? activity.attempts : '-'}
+                </div>
+                <div style="font-size: 0.65rem; color: ${hasActivity ? 'var(--success)' : 'var(--text-secondary)'};">${hasActivity ? activity.correct + '✓' : ''}</div>
+              </div>
+            `;
+          }
+
+          html += '</div></div>';
+        }
+
+        document.getElementById('dashboard-content').innerHTML = html;
+      } catch (err) {
+        document.getElementById('dashboard-content').innerHTML =
+          '<div class="alert alert-danger">Gagal memuat dashboard</div>';
+      }
+    }
+
+    function startCategoryExercise(category) {
+      window.location.href = '/student/exercise.html?category=' + category;
+    }
+
+    loadDashboard();
+  </script>
+</body>
+</html>

@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kelola Soal - Literasi Numerasi</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>Literasi Numerasi</h2>
+        <div class="subtitle">Panel Guru</div>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="/teacher/dashboard"><span class="icon">Dashboard</span></a>
+        <a href="/teacher/students"><span class="icon">Murid</span></a>
+        <a href="/teacher/exercises" class="active"><span class="icon">Soal</span></a>
+        <a href="/teacher/reports"><span class="icon">Laporan</span></a>
+        <a href="#" onclick="logout()"><span class="icon">Keluar</span></a>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <div class="page-header">
+        <h1>Kelola Soal</h1>
+        <div class="no-print" style="display: flex; gap: 8px;">
+          <button class="btn btn-danger" id="bulk-delete-btn" style="display:none" onclick="bulkDelete()">Hapus Terpilih</button>
+          <button class="btn btn-primary" onclick="showAddModal()">+ Tambah Soal</button>
+        </div>
+      </div>
+
+      <div id="alert-box"></div>
+
+      <!-- Stats -->
+      <div id="stats-bar" class="stats-grid" style="margin-bottom: 16px;"></div>
+
+      <!-- Filters -->
+      <div class="card" style="margin-bottom: 16px;">
+        <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: end;">
+          <div class="form-group" style="margin: 0; flex: 1; min-width: 150px;">
+            <label>Cari Soal</label>
+            <input type="text" id="filter-search" class="form-control" placeholder="Kata kunci..." oninput="loadExercises()">
+          </div>
+          <div class="form-group" style="margin: 0; min-width: 130px;">
+            <label>Kategori</label>
+            <select id="filter-category" class="form-control" onchange="loadExercises()">
+              <option value="">Semua</option>
+              <option value="membaca">Membaca</option>
+              <option value="menulis">Menulis</option>
+              <option value="berhitung">Berhitung</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin: 0; min-width: 130px;">
+            <label>Tipe</label>
+            <select id="filter-type" class="form-control" onchange="loadExercises()">
+              <option value="">Semua</option>
+              <option value="pilihan_ganda">Pilihan Ganda</option>
+              <option value="isian">Isian Singkat</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin: 0; min-width: 110px;">
+            <label>Level</label>
+            <select id="filter-difficulty" class="form-control" onchange="loadExercises()">
+              <option value="">Semua</option>
+              <option value="1">Level 1</option>
+              <option value="2">Level 2</option>
+              <option value="3">Level 3</option>
+              <option value="4">Level 4</option>
+              <option value="5">Level 5</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin: 0;">
+            <label>&nbsp;</label>
+            <button class="btn btn-outline" onclick="resetFilters()">Reset</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="card">
+        <div id="exercises-table">
+          <div class="spinner"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add/Edit Modal -->
+  <div class="modal-overlay" id="exercise-modal">
+    <div class="modal" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3 id="modal-title">Tambah Soal</h3>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="exercise-form" onsubmit="saveExercise(event)">
+          <input type="hidden" id="exercise-id">
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label>Kategori *</label>
+              <select id="ex-category" class="form-control" required onchange="updateSubcategories()">
+                <option value="membaca">Membaca</option>
+                <option value="menulis">Menulis</option>
+                <option value="berhitung">Berhitung</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Sub Kategori *</label>
+              <select id="ex-subcategory" class="form-control" required></select>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+            <div class="form-group">
+              <label>Tipe Soal *</label>
+              <select id="ex-type" class="form-control" required onchange="toggleOptions()">
+                <option value="pilihan_ganda">Pilihan Ganda</option>
+                <option value="isian">Isian Singkat</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Level Kesulitan *</label>
+              <select id="ex-difficulty" class="form-control" required>
+                <option value="1">1 - Sangat Mudah</option>
+                <option value="2">2 - Mudah</option>
+                <option value="3">3 - Sedang</option>
+                <option value="4">4 - Sulit</option>
+                <option value="5">5 - Sangat Sulit</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Pertanyaan *</label>
+            <textarea id="ex-question" class="form-control" rows="3" placeholder="Tulis pertanyaan soal..." required></textarea>
+          </div>
+
+          <div class="form-group">
+            <label>Jawaban Benar *</label>
+            <input type="text" id="ex-answer" class="form-control" placeholder="Jawaban yang benar" required>
+          </div>
+
+          <div id="options-container">
+            <label>Opsi Pilihan Ganda *</label>
+            <div class="option-inputs">
+              <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                <input type="text" class="form-control ex-option" placeholder="Opsi A" required>
+                <input type="text" class="form-control ex-option" placeholder="Opsi B" required>
+              </div>
+              <div style="display: flex; gap: 8px;">
+                <input type="text" class="form-control ex-option" placeholder="Opsi C">
+                <input type="text" class="form-control ex-option" placeholder="Opsi D">
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Penjelasan</label>
+            <textarea id="ex-explanation" class="form-control" rows="2" placeholder="Penjelasan jawaban (opsional)"></textarea>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal()">Batal</button>
+        <button class="btn btn-primary" onclick="document.getElementById('exercise-form').requestSubmit()">Simpan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- View Detail Modal -->
+  <div class="modal-overlay" id="detail-modal">
+    <div class="modal" style="max-width: 550px;">
+      <div class="modal-header">
+        <h3>Detail Soal</h3>
+        <button class="modal-close" onclick="closeDetailModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="detail-content"></div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeDetailModal()">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const subcategories = {
+      membaca: ['pengenalan_huruf', 'menyusun_kata', 'pengertian_kata', 'membaca_kalimat', 'memahami_teks', 'membaca_paragraf', 'inferensi_teks', 'analisis_teks'],
+      menulis: ['menulis_huruf', 'menulis_kata', 'menulis_kalimat', 'menulis_paragraf', 'tanda_baca', 'ejaan', 'menulis_pendek', 'struktur_teks'],
+      berhitung: ['penjumlahan', 'pengurangan', 'perkalian', 'pembagian']
+    };
+
+    const categoryLabels = {
+      membaca: 'Membaca', menulis: 'Menulis', berhitung: 'Berhitung'
+    };
+
+    let allExercises = [];
+    let selectedIds = new Set();
+
+    function updateSubcategories() {
+      const cat = document.getElementById('ex-category').value;
+      const subSelect = document.getElementById('ex-subcategory');
+      subSelect.innerHTML = '';
+      (subcategories[cat] || []).forEach(sub => {
+        const opt = document.createElement('option');
+        opt.value = sub;
+        opt.textContent = sub.replace(/_/g, ' ');
+        subSelect.appendChild(opt);
+      });
+    }
+
+    function toggleOptions() {
+      const type = document.getElementById('ex-type').value;
+      document.getElementById('options-container').style.display = type === 'pilihan_ganda' ? 'block' : 'none';
+    }
+
+    async function loadExercises() {
+      try {
+        const params = new URLSearchParams();
+        const cat = document.getElementById('filter-category').value;
+        const type = document.getElementById('filter-type').value;
+        const diff = document.getElementById('filter-difficulty').value;
+        const search = document.getElementById('filter-search').value;
+
+        if (cat) params.set('category', cat);
+        if (type) params.set('type', type);
+        if (diff) params.set('difficulty', diff);
+        if (search) params.set('search', search);
+
+        const res = await fetch(`/api/teacher/exercises?${params}`);
+        const data = await res.json();
+        allExercises = data.exercises;
+        selectedIds.clear();
+        updateBulkDeleteBtn();
+
+        // Stats
+        document.getElementById('stats-bar').innerHTML = `
+          <div class="stat-card">
+            <div class="stat-label">Total Soal</div>
+            <div class="stat-value text-primary">${data.total}</div>
+          </div>
+          ${Object.entries(data.byCategory).map(([cat, count]) => `
+            <div class="stat-card">
+              <div class="stat-label">${categoryLabels[cat] || cat}</div>
+              <div class="stat-value text-success">${count}</div>
+            </div>
+          `).join('')}
+        `;
+
+        renderExercises();
+      } catch (err) {
+        document.getElementById('exercises-table').innerHTML =
+          '<div class="alert alert-danger">Gagal memuat data soal</div>';
+      }
+    }
+
+    function renderExercises() {
+      if (allExercises.length === 0) {
+        document.getElementById('exercises-table').innerHTML =
+          '<div class="empty-state"><div class="icon">📝</div><p>Belum ada soal atau tidak ada yang cocok</p></div>';
+        return;
+      }
+
+      const rows = allExercises.map(ex => {
+        const opts = Array.isArray(ex.options) ? ex.options : (ex.options ? JSON.parse(ex.options) : []);
+        return `
+          <tr>
+            <td>
+              <input type="checkbox" class="exercise-checkbox" value="${ex.id}" onchange="toggleSelect(${ex.id})">
+            </td>
+            <td>
+              <span class="badge badge-primary">${categoryLabels[ex.category] || ex.category}</span>
+              <div style="font-size: 0.75rem; color: var(--text-secondary);">${ex.subcategory.replace(/_/g, ' ')}</div>
+            </td>
+            <td>
+              <span class="badge ${ex.type === 'pilihan_ganda' ? 'badge-warning' : 'badge-info'}">${ex.type === 'pilihan_ganda' ? 'PG' : 'Isian'}</span>
+            </td>
+            <td>
+              <div class="difficulty-dots">
+                ${[1,2,3,4,5].map(d => `<div class="difficulty-dot ${d <= ex.difficulty ? 'active' : ''}"></div>`).join('')}
+              </div>
+            </td>
+            <td style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${ex.question}</td>
+            <td style="font-weight: 500; color: var(--success);">${ex.answer}</td>
+            <td>
+              <div style="display: flex; gap: 4px;">
+                <button class="btn btn-sm btn-outline" onclick="viewExercise(${ex.id})">Lihat</button>
+                <button class="btn btn-sm btn-outline" onclick="editExercise(${ex.id})">Edit</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteExercise(${ex.id})">Hapus</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+
+      document.getElementById('exercises-table').innerHTML = `
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 30px;"><input type="checkbox" onchange="toggleAll(this)"></th>
+                <th>Kategori</th>
+                <th>Tipe</th>
+                <th>Level</th>
+                <th>Pertanyaan</th>
+                <th>Jawaban</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        <div style="padding: 12px; font-size: 0.8rem; color: var(--text-secondary);">
+          Menampilkan ${allExercises.length} soal
+        </div>
+      `;
+    }
+
+    function toggleSelect(id) {
+      if (selectedIds.has(id)) selectedIds.delete(id);
+      else selectedIds.add(id);
+      updateBulkDeleteBtn();
+    }
+
+    function toggleAll(cb) {
+      const checkboxes = document.querySelectorAll('.exercise-checkbox');
+      checkboxes.forEach(c => {
+        c.checked = cb.checked;
+        const id = parseInt(c.value);
+        if (cb.checked) selectedIds.add(id);
+        else selectedIds.delete(id);
+      });
+      updateBulkDeleteBtn();
+    }
+
+    function updateBulkDeleteBtn() {
+      document.getElementById('bulk-delete-btn').style.display = selectedIds.size > 0 ? 'inline-flex' : 'none';
+      document.getElementById('bulk-delete-btn').textContent = `Hapus ${selectedIds.size} Soal Terpilih`;
+    }
+
+    function showAlert(message, type = 'danger') {
+      document.getElementById('alert-box').innerHTML =
+        `<div class="alert alert-${type}">${message}</div>`;
+      setTimeout(() => { document.getElementById('alert-box').innerHTML = ''; }, 3000);
+    }
+
+    function showAddModal() {
+      document.getElementById('modal-title').textContent = 'Tambah Soal';
+      document.getElementById('exercise-id').value = '';
+      document.getElementById('ex-category').value = 'membaca';
+      updateSubcategories();
+      document.getElementById('ex-type').value = 'pilihan_ganda';
+      document.getElementById('ex-difficulty').value = '1';
+      document.getElementById('ex-question').value = '';
+      document.getElementById('ex-answer').value = '';
+      document.getElementById('ex-explanation').value = '';
+      document.querySelectorAll('.ex-option').forEach(i => i.value = '');
+      toggleOptions();
+      document.getElementById('exercise-modal').classList.add('active');
+    }
+
+    async function editExercise(id) {
+      try {
+        const res = await fetch(`/api/teacher/exercises/${id}`);
+        const data = await res.json();
+        const ex = data.exercise;
+
+        document.getElementById('modal-title').textContent = 'Edit Soal';
+        document.getElementById('exercise-id').value = ex.id;
+        document.getElementById('ex-category').value = ex.category;
+        updateSubcategories();
+        document.getElementById('ex-subcategory').value = ex.subcategory;
+        document.getElementById('ex-type').value = ex.type;
+        document.getElementById('ex-difficulty').value = ex.difficulty;
+        document.getElementById('ex-question').value = ex.question;
+        document.getElementById('ex-answer').value = ex.answer;
+        document.getElementById('ex-explanation').value = ex.explanation || '';
+
+        const opts = ex.options || [];
+        const optionInputs = document.querySelectorAll('.ex-option');
+        optionInputs.forEach((input, i) => {
+          input.value = opts[i] || '';
+        });
+
+        toggleOptions();
+        document.getElementById('exercise-modal').classList.add('active');
+      } catch (err) {
+        showAlert('Gagal memuat data soal');
+      }
+    }
+
+    function viewExercise(id) {
+      const ex = allExercises.find(e => e.id === id);
+      if (!ex) return;
+
+      const opts = ex.options || [];
+      let content = `
+        <div style="margin-bottom: 12px;">
+          <span class="badge badge-primary">${categoryLabels[ex.category] || ex.category}</span>
+          <span style="font-size: 0.8rem; color: var(--text-secondary); margin-left: 8px;">${ex.subcategory.replace(/_/g, ' ')}</span>
+        </div>
+        <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+          <span class="badge ${ex.type === 'pilihan_ganda' ? 'badge-warning' : 'badge-info'}">${ex.type === 'pilihan_ganda' ? 'Pilihan Ganda' : 'Isian Singkat'}</span>
+          <span class="badge badge-primary">Level ${ex.difficulty}</span>
+        </div>
+        <div style="font-size: 1.05rem; font-weight: 500; margin-bottom: 16px; padding: 12px; background: var(--bg); border-radius: 8px;">${ex.question}</div>
+      `;
+
+      if (ex.type === 'pilihan_ganda' && opts.length > 0) {
+        content += '<div style="margin-bottom: 12px;"><strong>Opsi:</strong></div>';
+        opts.forEach((opt, i) => {
+          const isCorrect = opt === ex.answer;
+          content += `<div style="padding: 8px 12px; margin-bottom: 4px; border-radius: 6px; background: ${isCorrect ? '#dcfce7' : 'var(--bg)'}; border: 1px solid ${isCorrect ? '#bbf7d0' : 'var(--border)'};">
+            ${String.fromCharCode(65 + i)}. ${opt} ${isCorrect ? '<span style="color: var(--success); font-weight: 600;">✓</span>' : ''}
+          </div>`;
+        });
+      }
+
+      content += `
+        <div style="margin-top: 16px; padding: 12px; background: #dcfce7; border-radius: 8px; border: 1px solid #bbf7d0;">
+          <strong style="color: #166534;">Jawaban: ${ex.answer}</strong>
+        </div>
+      `;
+
+      if (ex.explanation) {
+        content += `
+          <div style="margin-top: 12px; padding: 12px; background: #dbeafe; border-radius: 8px; border: 1px solid #bfdbfe;">
+            <strong style="color: #1e40af;">Penjelasan:</strong><br>
+            <span style="color: #1e40af;">${ex.explanation}</span>
+          </div>
+        `;
+      }
+
+      document.getElementById('detail-content').innerHTML = content;
+      document.getElementById('detail-modal').classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('exercise-modal').classList.remove('active');
+    }
+
+    function closeDetailModal() {
+      document.getElementById('detail-modal').classList.remove('active');
+    }
+
+    async function saveExercise(e) {
+      e.preventDefault();
+      const id = document.getElementById('exercise-id').value;
+      const category = document.getElementById('ex-category').value;
+      const subcategory = document.getElementById('ex-subcategory').value;
+      const type = document.getElementById('ex-type').value;
+      const difficulty = document.getElementById('ex-difficulty').value;
+      const question = document.getElementById('ex-question').value;
+      const answer = document.getElementById('ex-answer').value;
+      const explanation = document.getElementById('ex-explanation').value;
+
+      let options = null;
+      if (type === 'pilihan_ganda') {
+        options = Array.from(document.querySelectorAll('.ex-option'))
+          .map(i => i.value.trim())
+          .filter(v => v.length > 0);
+        if (options.length < 2) {
+          alert('Pilihan ganda minimal 2 opsi');
+          return;
+        }
+      }
+
+      const url = id ? `/api/teacher/exercises/${id}` : '/api/teacher/exercises';
+      const method = id ? 'PUT' : 'POST';
+
+      try {
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ category, subcategory, type, difficulty, question, answer, options, explanation })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          showAlert(data.message, 'success');
+          closeModal();
+          loadExercises();
+        } else {
+          showAlert(data.error);
+        }
+      } catch (err) {
+        showAlert('Gagal menyimpan soal');
+      }
+    }
+
+    async function deleteExercise(id) {
+      if (!confirm('Yakin ingin menghapus soal ini?')) return;
+
+      try {
+        const res = await fetch(`/api/teacher/exercises/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+          showAlert(data.message, 'success');
+          loadExercises();
+        } else {
+          showAlert(data.error);
+        }
+      } catch (err) {
+        showAlert('Gagal menghapus soal');
+      }
+    }
+
+    async function bulkDelete() {
+      if (!confirm(`Yakin ingin menghapus ${selectedIds.size} soal terpilih?`)) return;
+
+      try {
+        const res = await fetch('/api/teacher/exercises', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ids: Array.from(selectedIds) })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showAlert(data.message, 'success');
+          loadExercises();
+        } else {
+          showAlert(data.error);
+        }
+      } catch (err) {
+        showAlert('Gagal menghapus soal');
+      }
+    }
+
+    function resetFilters() {
+      document.getElementById('filter-search').value = '';
+      document.getElementById('filter-category').value = '';
+      document.getElementById('filter-type').value = '';
+      document.getElementById('filter-difficulty').value = '';
+      loadExercises();
+    }
+
+    async function logout() {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/login';
+    }
+
+    // Init
+    updateSubcategories();
+    toggleOptions();
+    loadExercises();
+  </script>
+</body>
+</html>

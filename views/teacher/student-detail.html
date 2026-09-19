@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Detail Murid - Literasi Numerasi</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>Literasi Numerasi</h2>
+        <div class="subtitle">Panel Guru</div>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="/teacher/dashboard"><span class="icon">Dashboard</span></a>
+        <a href="/teacher/students" class="active"><span class="icon">Murid</span></a>
+        <a href="/teacher/exercises"><span class="icon">Soal</span></a>
+        <a href="/teacher/reports"><span class="icon">Laporan</span></a>
+        <a href="#" onclick="logout()"><span class="icon">Keluar</span></a>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <div class="page-header">
+        <h1 id="page-title">Detail Murid</h1>
+        <div class="no-print" style="display: flex; gap: 8px;">
+          <button class="btn btn-outline" onclick="printReport()">Cetak Laporan</button>
+          <a href="/teacher/students" class="btn btn-outline">Kembali</a>
+        </div>
+      </div>
+
+      <div id="content-container">
+        <div class="spinner"></div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const studentId = window.location.pathname.split('/').pop();
+
+    async function loadStudentDetail() {
+      try {
+        const res = await fetch(`/api/teacher/students/${studentId}`);
+        const data = await res.json();
+
+        if (!data.student) {
+          document.getElementById('content-container').innerHTML =
+            '<div class="alert alert-danger">Murid tidak ditemukan</div>';
+          return;
+        }
+
+        const s = data.student;
+        document.getElementById('page-title').textContent = `Detail: ${s.full_name}`;
+
+        let html = `
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-label">Total Soal Dikerjakan</div>
+              <div class="stat-value text-primary">${s.total_attempts || 0}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Jawaban Benar</div>
+              <div class="stat-value text-success">${s.correct_attempts || 0}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Akurasi</div>
+              <div class="stat-value ${s.accuracy >= 70 ? 'text-success' : 'text-danger'}">${s.accuracy || 0}%</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">NIS / Kelas</div>
+              <div class="stat-value text-primary" style="font-size: 1.2rem;">${s.nis} / ${s.class || '-'}</div>
+            </div>
+          </div>
+        `;
+
+        // Category breakdown
+        if (data.categoryStats.length > 0) {
+          html += `<div class="card" style="margin-bottom: 20px;"><div class="card-header"><h3>Performa per Kategori</h3></div><div class="table-container"><table><thead><tr><th>Kategori</th><th>Sub Kategori</th><th>Soal</th><th>Benar</th><th>Akurasi</th></tr></thead><tbody>`;
+
+          data.categoryStats.forEach(c => {
+            const acc = c.accuracy || 0;
+            html += `<tr>
+              <td><span class="badge badge-primary">${c.category}</span></td>
+              <td>${c.subcategory}</td>
+              <td>${c.total_attempts}</td>
+              <td>${c.correct_attempts}</td>
+              <td><span class="badge ${acc >= 70 ? 'badge-success' : acc >= 50 ? 'badge-warning' : 'badge-danger'}">${acc}%</span></td>
+            </tr>`;
+          });
+
+          html += '</tbody></table></div></div>';
+        }
+
+        // Recent attempts
+        if (data.recentAttempts.length > 0) {
+          html += `<div class="card"><div class="card-header"><h3>Riwayat Latihan Terbaru</h3></div><div class="table-container"><table><thead><tr><th>Soal</th><th>Kategori</th><th>Level</th><th>Jawaban</th><th>Hasil</th><th>Waktu</th></tr></thead><tbody>`;
+
+          data.recentAttempts.forEach(a => {
+            html += `<tr>
+              <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${a.question}</td>
+              <td><span class="badge badge-primary">${a.category}</span></td>
+              <td><span class="badge badge-warning">${a.difficulty}</span></td>
+              <td>${a.student_answer || '-'}</td>
+              <td><span class="badge ${a.is_correct ? 'badge-success' : 'badge-danger'}">${a.is_correct ? 'Benar' : 'Salah'}</span></td>
+              <td>${new Date(a.created_at).toLocaleString('id')}</td>
+            </tr>`;
+          });
+
+          html += '</tbody></table></div></div>';
+        }
+
+        if (data.progress.length > 0) {
+          html += `<div class="card" style="margin-top: 20px;"><div class="card-header"><h3>Level Kesulitan Saat Ini</h3></div><div style="display: flex; flex-wrap: wrap; gap: 12px; padding: 16px;">`;
+
+          data.progress.forEach(p => {
+            html += `<div style="background: var(--bg); padding: 12px; border-radius: 8px; min-width: 150px;">
+              <div style="font-size: 0.8rem; color: var(--text-secondary);">${p.category}</div>
+              <div style="font-size: 0.85rem; font-weight: 500;">${p.subcategory}</div>
+              <div class="difficulty-dots" style="margin-top: 4px;">
+                ${[1,2,3,4,5].map(d => `<div class="difficulty-dot ${d <= p.current_difficulty ? 'active' : ''}"></div>`).join('')}
+              </div>
+            </div>`;
+          });
+
+          html += '</div></div>';
+        }
+
+        document.getElementById('content-container').innerHTML = html;
+      } catch (err) {
+        document.getElementById('content-container').innerHTML =
+          '<div class="alert alert-danger">Gagal memuat data murid</div>';
+      }
+    }
+
+    function printReport() {
+      window.print();
+    }
+
+    async function logout() {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/login';
+    }
+
+    loadStudentDetail();
+  </script>
+</body>
+</html>

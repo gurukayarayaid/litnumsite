@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kelola Murid - Literasi Numerasi</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>Literasi Numerasi</h2>
+        <div class="subtitle">Panel Guru</div>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="/teacher/dashboard"><span class="icon">Dashboard</span></a>
+        <a href="/teacher/students" class="active"><span class="icon">Murid</span></a>
+        <a href="/teacher/exercises"><span class="icon">Soal</span></a>
+        <a href="/teacher/reports"><span class="icon">Laporan</span></a>
+        <a href="#" onclick="logout()"><span class="icon">Keluar</span></a>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <div class="page-header">
+        <h1>Kelola Murid</h1>
+        <div class="no-print" style="display: flex; gap: 8px;">
+          <button class="btn btn-outline" onclick="downloadTemplate()">Download Template</button>
+          <button class="btn btn-outline" onclick="showUploadModal()">Upload CSV</button>
+          <button class="btn btn-primary" onclick="showAddModal()">Tambah Murid</button>
+        </div>
+      </div>
+
+      <div id="alert-box"></div>
+
+      <div class="card">
+        <div class="card-header">
+          <h3>Daftar Murid</h3>
+          <input type="text" id="search-input" class="form-control" style="width: 250px;" placeholder="Cari murid..." oninput="filterStudents()">
+        </div>
+        <div id="students-table">
+          <div class="spinner"></div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add/Edit Modal -->
+  <div class="modal-overlay" id="student-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modal-title">Tambah Murid</h3>
+        <button class="modal-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="student-form" onsubmit="saveStudent(event)">
+          <input type="hidden" id="student-id">
+          <div class="form-group">
+            <label>NIS *</label>
+            <input type="text" id="student-nis" class="form-control" placeholder="Nomor Induk Siswa" required>
+          </div>
+          <div class="form-group">
+            <label>Nama Lengkap *</label>
+            <input type="text" id="student-name" class="form-control" placeholder="Nama lengkap murid" required>
+          </div>
+          <div class="form-group">
+            <label>Kelas</label>
+            <select id="student-class" class="form-control">
+              <option value="3">Kelas 3</option>
+              <option value="3A">Kelas 3A</option>
+              <option value="3B">Kelas 3B</option>
+              <option value="3C">Kelas 3C</option>
+              <option value="4">Kelas 4</option>
+              <option value="5">Kelas 5</option>
+              <option value="6">Kelas 6</option>
+            </select>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeModal()">Batal</button>
+        <button class="btn btn-primary" onclick="document.getElementById('student-form').requestSubmit()">Simpan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upload Modal -->
+  <div class="modal-overlay" id="upload-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Upload Data Murid</h3>
+        <button class="modal-close" onclick="closeUploadModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info">
+          Format CSV: nis; nama; kelas (delimiter titik koma atau koma)<br>
+          <a href="/api/teacher/students/template" download class="btn btn-sm btn-outline" style="margin-top: 8px;">Download Template CSV</a>
+        </div>
+        <form id="upload-form" onsubmit="uploadCSV(event)">
+          <div class="form-group">
+            <label>Pilih File CSV</label>
+            <input type="file" id="csv-file" class="form-control" accept=".csv" required>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeUploadModal()">Batal</button>
+        <button class="btn btn-primary" onclick="document.getElementById('upload-form').requestSubmit()">Upload</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let allStudents = [];
+
+    async function loadStudents() {
+      try {
+        const res = await fetch('/api/teacher/students');
+        const data = await res.json();
+        allStudents = data.students;
+        renderStudents(allStudents);
+      } catch (err) {
+        document.getElementById('students-table').innerHTML =
+          '<div class="alert alert-danger">Gagal memuat data murid</div>';
+      }
+    }
+
+    function renderStudents(students) {
+      if (students.length === 0) {
+        document.getElementById('students-table').innerHTML =
+          '<div class="empty-state"><div class="icon">👤</div><p>Belum ada data murid</p></div>';
+        return;
+      }
+
+      const rows = students.map(s => `
+        <tr>
+          <td>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <div class="avatar">${s.full_name.charAt(0)}</div>
+              <div>
+                <div style="font-weight: 500;">${s.full_name}</div>
+                <div style="font-size: 0.75rem; color: var(--text-secondary);">NIS: ${s.nis}</div>
+              </div>
+            </div>
+          </td>
+          <td>${s.class || '-'}</td>
+          <td><span class="badge ${s.accuracy >= 70 ? 'badge-success' : s.accuracy >= 50 ? 'badge-warning' : 'badge-danger'}">${s.accuracy || 0}%</span></td>
+          <td>${s.total_attempts || 0} soal</td>
+          <td>${s.last_activity ? new Date(s.last_activity).toLocaleDateString('id') : '-'}</td>
+          <td>
+            <div style="display: flex; gap: 4px;">
+              <a href="/teacher/student/${s.id}" class="btn btn-sm btn-primary">Detail</a>
+              <button class="btn btn-sm btn-outline" onclick="editStudent(${s.id})">Edit</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteStudent(${s.id}, '${s.full_name}')">Hapus</button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+
+      document.getElementById('students-table').innerHTML = `
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr><th>Murid</th><th>Kelas</th><th>Akurasi</th><th>Total Soal</th><th>Terakhir Aktif</th><th>Aksi</th></tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function filterStudents() {
+      const query = document.getElementById('search-input').value.toLowerCase();
+      const filtered = allStudents.filter(s =>
+        s.full_name.toLowerCase().includes(query) ||
+        s.nis.includes(query) ||
+        (s.class && s.class.toLowerCase().includes(query))
+      );
+      renderStudents(filtered);
+    }
+
+    function showAlert(message, type = 'danger') {
+      document.getElementById('alert-box').innerHTML =
+        `<div class="alert alert-${type}">${message}</div>`;
+      setTimeout(() => { document.getElementById('alert-box').innerHTML = ''; }, 3000);
+    }
+
+    function showAddModal() {
+      document.getElementById('modal-title').textContent = 'Tambah Murid';
+      document.getElementById('student-id').value = '';
+      document.getElementById('student-nis').value = '';
+      document.getElementById('student-name').value = '';
+      document.getElementById('student-class').value = '3';
+      document.getElementById('student-modal').classList.add('active');
+    }
+
+    function showUploadModal() {
+      document.getElementById('upload-modal').classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('student-modal').classList.remove('active');
+    }
+
+    function closeUploadModal() {
+      document.getElementById('upload-modal').classList.remove('active');
+      document.getElementById('csv-file').value = '';
+    }
+
+    async function editStudent(id) {
+      const s = allStudents.find(s => s.id === id);
+      if (!s) return;
+
+      document.getElementById('modal-title').textContent = 'Edit Murid';
+      document.getElementById('student-id').value = s.id;
+      document.getElementById('student-nis').value = s.nis;
+      document.getElementById('student-name').value = s.full_name;
+      document.getElementById('student-class').value = s.class || '3';
+      document.getElementById('student-modal').classList.add('active');
+    }
+
+    async function saveStudent(e) {
+      e.preventDefault();
+      const id = document.getElementById('student-id').value;
+      const nis = document.getElementById('student-nis').value;
+      const full_name = document.getElementById('student-name').value;
+      const studentClass = document.getElementById('student-class').value;
+
+      const url = id ? `/api/teacher/students/${id}` : '/api/teacher/students';
+      const method = id ? 'PUT' : 'POST';
+
+      try {
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ nis, full_name, class: studentClass })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          showAlert(data.message, 'success');
+          closeModal();
+          loadStudents();
+        } else {
+          showAlert(data.error);
+        }
+      } catch (err) {
+        showAlert('Gagal menyimpan data');
+      }
+    }
+
+    async function deleteStudent(id, name) {
+      if (!confirm(`Hapus murid "${name}"? Semua data latihan akan dihapus.`)) return;
+
+      try {
+        const res = await fetch(`/api/teacher/students/${id}`, { method: 'DELETE' });
+        const data = await res.json();
+
+        if (data.success) {
+          showAlert(data.message, 'success');
+          loadStudents();
+        } else {
+          showAlert(data.error);
+        }
+      } catch (err) {
+        showAlert('Gagal menghapus murid');
+      }
+    }
+
+    async function uploadCSV(e) {
+      e.preventDefault();
+      const fileInput = document.getElementById('csv-file');
+      if (!fileInput.files.length) return;
+
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+
+      try {
+        const res = await fetch('/api/teacher/students/upload', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          showAlert(data.message, 'success');
+          closeUploadModal();
+          loadStudents();
+        } else {
+          showAlert(data.error);
+        }
+      } catch (err) {
+        showAlert('Gagal upload file');
+      }
+    }
+
+    function downloadTemplate() {
+      window.location.href = '/api/teacher/students/template';
+    }
+
+    async function logout() {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/login';
+    }
+
+    loadStudents();
+  </script>
+</body>
+</html>

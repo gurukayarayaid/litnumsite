@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Progres Saya - Literasi Numerasi</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>Literasi Numerasi</h2>
+        <div class="subtitle">Halo, <span id="student-name">Siswa</span></div>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="/student/dashboard"><span class="icon">Dashboard</span></a>
+        <a href="/student/exercise"><span class="icon">Latihan</span></a>
+        <a href="/student/progress" class="active"><span class="icon">Progres</span></a>
+        <a href="#" onclick="logout()"><span class="icon">Keluar</span></a>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <div class="page-header">
+        <h1>Progres Saya</h1>
+      </div>
+
+      <div id="progress-content">
+        <div class="spinner"></div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    async function loadProgress() {
+      try {
+        const meRes = await fetch('/api/auth/me');
+        const meData = await meRes.json();
+        if (meData.user) {
+          document.getElementById('student-name').textContent = meData.user.name;
+        }
+
+        const res = await fetch('/api/student/progress');
+        const data = await res.json();
+
+        let html = '';
+
+        if (data.detailedStats.length === 0) {
+          html = `
+            <div class="card">
+              <div class="empty-state">
+                <div class="icon">📊</div>
+                <h3>Belum ada progres</h3>
+                <p style="margin: 12px 0;">Mulai latihan untuk melihat progresmu!</p>
+                <a href="/student/exercise" class="btn btn-primary">Mulai Latihan</a>
+              </div>
+            </div>
+          `;
+        } else {
+          // Group by category
+          const categories = {};
+          data.detailedStats.forEach(s => {
+            if (!categories[s.category]) categories[s.category] = [];
+            categories[s.category].push(s);
+          });
+
+          const catNames = {
+            membaca: { name: 'Membaca', icon: '📖', color: '#3b82f6' },
+            menulis: { name: 'Menulis', icon: '✍️', color: '#ec4899' },
+            berhitung: { name: 'Berhitung', icon: '🔢', color: '#22c55e' }
+          };
+
+          Object.keys(categories).forEach(cat => {
+            const catInfo = catNames[cat] || { name: cat, icon: '📝', color: '#64748b' };
+            const stats = categories[cat];
+
+            const totalAttempts = stats.reduce((a, s) => a + s.total_attempts, 0);
+            const totalCorrect = stats.reduce((a, s) => a + s.correct_attempts, 0);
+            const overallAccuracy = totalAttempts > 0 ? Math.round(totalCorrect / totalAttempts * 100) : 0;
+
+            html += `
+              <div class="card" style="margin-bottom: 20px;">
+                <div class="card-header">
+                  <h3 style="display: flex; align-items: center; gap: 8px;">
+                    <span>${catInfo.icon}</span>
+                    ${catInfo.name}
+                    <span class="badge ${overallAccuracy >= 70 ? 'badge-success' : overallAccuracy >= 50 ? 'badge-warning' : 'badge-danger'}" style="margin-left: 8px;">${overallAccuracy}%</span>
+                  </h3>
+                </div>
+                <div class="table-container">
+                  <table>
+                    <thead>
+                      <tr><th>Sub Kategori</th><th>Level</th><th>Soal</th><th>Benar</th><th>Akurasi</th></tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            stats.forEach(s => {
+              const acc = s.accuracy || 0;
+              html += `
+                <tr>
+                  <td style="font-weight: 500;">${s.subcategory}</td>
+                  <td>
+                    <div class="difficulty-dots">
+                      ${[1,2,3,4,5].map(d => `<div class="difficulty-dot ${d <= s.difficulty ? 'active' : ''}"></div>`).join('')}
+                    </div>
+                  </td>
+                  <td>${s.total_attempts}</td>
+                  <td>${s.correct_attempts}</td>
+                  <td>
+                    <span class="badge ${acc >= 70 ? 'badge-success' : acc >= 50 ? 'badge-warning' : 'badge-danger'}">${acc}%</span>
+                  </td>
+                </tr>
+              `;
+            });
+
+            html += '</tbody></table></div></div>';
+          });
+
+          // Summary card
+          const totalAll = data.detailedStats.reduce((a, s) => a + s.total_attempts, 0);
+          const correctAll = data.detailedStats.reduce((a, s) => a + s.correct_attempts, 0);
+          const overallAll = totalAll > 0 ? Math.round(correctAll / totalAll * 100) : 0;
+
+          html = `
+            <div class="stats-grid" style="margin-bottom: 24px;">
+              <div class="stat-card">
+                <div class="stat-label">Total Latihan</div>
+                <div class="stat-value text-primary">${totalAll}</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Jawaban Benar</div>
+                <div class="stat-value text-success">${correctAll}</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Akurasi Keseluruhan</div>
+                <div class="stat-value ${overallAll >= 70 ? 'text-success' : 'text-warning'}">${overallAll}%</div>
+              </div>
+            </div>
+          ` + html;
+        }
+
+        document.getElementById('progress-content').innerHTML = html;
+      } catch (err) {
+        document.getElementById('progress-content').innerHTML =
+          '<div class="alert alert-danger">Gagal memuat data progres</div>';
+      }
+    }
+
+    async function logout() {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/login';
+    }
+
+    loadProgress();
+  </script>
+</body>
+</html>

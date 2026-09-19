@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laporan - Literasi Numerasi</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>Literasi Numerasi</h2>
+        <div class="subtitle">Panel Guru</div>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="/teacher/dashboard"><span class="icon">Dashboard</span></a>
+        <a href="/teacher/students"><span class="icon">Murid</span></a>
+        <a href="/teacher/exercises"><span class="icon">Soal</span></a>
+        <a href="/teacher/reports" class="active"><span class="icon">Laporan</span></a>
+        <a href="#" onclick="logout()"><span class="icon">Keluar</span></a>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <div class="page-header">
+        <h1>Laporan</h1>
+        <div class="no-print" style="display: flex; gap: 8px;">
+          <button class="btn btn-primary" onclick="printAllReports()">Cetak Laporan Semua Murid</button>
+        </div>
+      </div>
+
+      <div id="report-content">
+        <div class="spinner"></div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    async function loadReports() {
+      try {
+        const res = await fetch('/api/teacher/reports/all');
+        const data = await res.json();
+
+        let html = `
+          <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header">
+              <h3>Ringkasan Kelas</h3>
+              <span style="font-size: 0.8rem; color: var(--text-secondary);">Dicetak: ${new Date(data.generatedAt).toLocaleString('id')}</span>
+            </div>
+            <div class="stats-grid">
+              <div class="stat-card">
+                <div class="stat-label">Total Murid</div>
+                <div class="stat-value text-primary">${data.students.length}</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Total Latihan</div>
+                <div class="stat-value text-success">${data.students.reduce((a, s) => a + (s.total_attempts || 0), 0)}</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Rata-rata Akurasi</div>
+                <div class="stat-value text-primary">${data.students.length > 0 ? Math.round(data.students.reduce((a, s) => a + (s.accuracy || 0), 0) / data.students.length) : 0}%</div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        // Category summary
+        if (data.categoryStats.length > 0) {
+          html += `<div class="card" style="margin-bottom: 20px;"><div class="card-header"><h3>Statistik Kategori</h3></div><div class="table-container"><table><thead><tr><th>Kategori</th><th>Sub Kategori</th><th>Total Soal</th><th>Benar</th><th>Akurasi</th></tr></thead><tbody>`;
+
+          data.categoryStats.forEach(c => {
+            html += `<tr>
+              <td><span class="badge badge-primary">${c.category}</span></td>
+              <td>${c.subcategory}</td>
+              <td>${c.total_attempts}</td>
+              <td>${c.correct_attempts}</td>
+              <td><span class="badge ${c.accuracy >= 70 ? 'badge-success' : c.accuracy >= 50 ? 'badge-warning' : 'badge-danger'}">${c.accuracy}%</span></td>
+            </tr>`;
+          });
+
+          html += '</tbody></table></div></div>';
+        }
+
+        // All students table
+        html += `<div class="card"><div class="card-header"><h3>Daftar Semua Murid</h3></div>`;
+
+        if (data.students.length === 0) {
+          html += '<div class="empty-state"><p>Belum ada data murid</p></div>';
+        } else {
+          html += `<div class="table-container"><table><thead><tr><th>No</th><th>Murid</th><th>NIS</th><th>Kelas</th><th>Total Soal</th><th>Benar</th><th>Akurasi</th><th>Aksi</th></tr></thead><tbody>`;
+
+          data.students.forEach((s, i) => {
+            html += `<tr>
+              <td>${i + 1}</td>
+              <td>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                  <div class="avatar">${s.full_name.charAt(0)}</div>
+                  <span style="font-weight: 500;">${s.full_name}</span>
+                </div>
+              </td>
+              <td>${s.nis}</td>
+              <td>${s.class || '-'}</td>
+              <td>${s.total_attempts || 0}</td>
+              <td>${s.correct_attempts || 0}</td>
+              <td><span class="badge ${s.accuracy >= 70 ? 'badge-success' : s.accuracy >= 50 ? 'badge-warning' : 'badge-danger'}">${s.accuracy || 0}%</span></td>
+              <td><a href="/teacher/student/${s.id}" class="btn btn-sm btn-primary">Detail</a></td>
+            </tr>`;
+          });
+
+          html += '</tbody></table></div>';
+        }
+
+        html += '</div>';
+
+        document.getElementById('report-content').innerHTML = html;
+      } catch (err) {
+        document.getElementById('report-content').innerHTML =
+          '<div class="alert alert-danger">Gagal memuat laporan</div>';
+      }
+    }
+
+    function printAllReports() {
+      window.print();
+    }
+
+    async function logout() {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/login';
+    }
+
+    loadReports();
+  </script>
+</body>
+</html>

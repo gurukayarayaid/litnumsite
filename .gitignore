@@ -1,0 +1,12 @@
+node_modules/
+data/litnum.json
+.env
+*.log
+tambah murid/
+tambah soal/
+tambah/
+scripts/
+jalankan.bat
+hentikan.bat
+desktop.ini
+**/desktop.ini

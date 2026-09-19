@@ -1,0 +1,398 @@
+﻿<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manajemen Siswa - Guru | LitNum</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="/js/firebase-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/db.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>Literasi Numerasi</h2>
+        <div class="subtitle">Panel Guru</div>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="/teacher/dashboard.html">
+          <span class="icon">Dashboard</span>
+        </a>
+        <a href="/teacher/students.html" class="active">
+          <span class="icon">Murid</span>
+        </a>
+        <a href="/teacher/exercises.html">
+          <span class="icon">Soal</span>
+        </a>
+        <a href="/teacher/reports.html">
+          <span class="icon">Laporan</span>
+        </a>
+        <a href="#" onclick="handleLogout()">
+          <span class="icon">Keluar</span>
+        </a>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <div class="page-header">
+        <h1>Manajemen Siswa</h1>
+        <div class="header-actions">
+          <button class="btn btn-outline" onclick="downloadTemplate()">Download Template CSV</button>
+          <button class="btn btn-outline" onclick="openCsvModal()">Upload CSV</button>
+          <button class="btn btn-primary" onclick="openAddModal()">Tambah Siswa</button>
+        </div>
+      </div>
+
+      <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="Cari nama, NIS, atau kelas..." oninput="filterStudents()">
+      </div>
+
+      <div id="students-container">
+        <div class="spinner"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Add/Edit Modal -->
+  <div class="modal-overlay" id="student-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 id="modal-title">Tambah Siswa</h3>
+        <button class="modal-close" onclick="closeStudentModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="student-form" onsubmit="saveStudent(event)">
+          <input type="hidden" id="student-id">
+          <div class="form-group">
+            <label for="nis">NIS *</label>
+            <input type="text" id="nis" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label for="full_name">Nama Lengkap *</label>
+            <input type="text" id="full_name" class="form-control" required>
+          </div>
+          <div class="form-group">
+            <label for="student_class">Kelas *</label>
+            <input type="text" id="student_class" class="form-control" required placeholder="Contoh: 3A">
+          </div>
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" class="form-control" placeholder="Default: 123456">
+            <small>Kosongkan jika tidak ingin mengubah</small>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeStudentModal()">Batal</button>
+        <button class="btn btn-primary" onclick="document.getElementById('student-form').requestSubmit()">Simpan</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CSV Upload Modal -->
+  <div class="modal-overlay" id="csv-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Upload CSV Siswa</h3>
+        <button class="modal-close" onclick="closeCsvModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="alert alert-info">
+          Format CSV: nis, nama, kelas<br>
+          Header wajib ada di baris pertama.
+        </div>
+        <div class="form-group">
+          <label for="csv-file">Pilih File CSV</label>
+          <input type="file" id="csv-file" class="form-control" accept=".csv" onchange="previewCSV(event)">
+        </div>
+        <div id="csv-preview" style="display:none; margin-top:16px;">
+          <h4>Preview Data (<span id="csv-count">0</span> siswa)</h4>
+          <div class="table-container" style="max-height:300px; overflow-y:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>NIS</th>
+                  <th>Nama</th>
+                  <th>Kelas</th>
+                </tr>
+              </thead>
+              <tbody id="csv-preview-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeCsvModal()">Batal</button>
+        <button class="btn btn-primary" id="upload-csv-btn" onclick="uploadCSV()" disabled>Upload</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div class="modal-overlay" id="delete-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>Hapus Siswa</h3>
+        <button class="modal-close" onclick="closeDeleteModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p>Apakah Anda yakin ingin menghapus <strong id="delete-name"></strong>?</p>
+        <p class="text-muted">Semua data latihan siswa ini juga akan dihapus.</p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline" onclick="closeDeleteModal()">Batal</button>
+        <button class="btn btn-danger" id="confirm-delete-btn">Hapus</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    if (!Auth.requireRole('guru')) {
+      throw new Error('Unauthorized');
+    }
+
+    let allStudents = [];
+    let csvData = [];
+
+    function handleLogout() {
+      Auth.logout();
+      window.location.href = '/login.html';
+    }
+
+    async function loadStudents() {
+      try {
+        allStudents = await DB.getAllStudentsWithStats();
+        renderStudents(allStudents);
+      } catch (err) {
+        document.getElementById('students-container').innerHTML =
+          '<div class="alert alert-danger">Gagal memuat data siswa: ' + err.message + '</div>';
+      }
+    }
+
+    function renderStudents(students) {
+      if (students.length === 0) {
+        document.getElementById('students-container').innerHTML =
+          '<div class="empty-state"><div class="icon">&#x1F464;</div><p>Belum ada siswa</p><button class="btn btn-primary" onclick="openAddModal()">Tambah Siswa</button></div>';
+        return;
+      }
+
+      var rows = students.map(function(s, i) {
+        return '<tr>' +
+          '<td>' + (i + 1) + '</td>' +
+          '<td>' +
+            '<div style="display: flex; align-items: center; gap: 10px;">' +
+              '<div class="avatar">' + (s.full_name ? s.full_name.charAt(0) : '?') + '</div>' +
+              '<div>' +
+                '<div style="font-weight: 500;">' + s.full_name + '</div>' +
+                '<div style="font-size: 0.75rem; color: var(--text-secondary);">NIS: ' + s.nis + '</div>' +
+              '</div>' +
+            '</div>' +
+          '</td>' +
+          '<td><span class="badge badge-primary">' + s.class + '</span></td>' +
+          '<td>' +
+            '<div style="text-align: center;">' +
+              '<div style="font-weight: 600; color: ' + (s.accuracy >= 70 ? 'var(--success)' : s.accuracy >= 50 ? 'var(--warning)' : 'var(--danger)') + ';">' + s.accuracy + '%</div>' +
+              '<div style="font-size: 0.7rem; color: var(--text-secondary);">' + s.correct_attempts + '/' + s.total_attempts + '</div>' +
+            '</div>' +
+          '</td>' +
+          '<td>' + s.total_attempts + '</td>' +
+          '<td>' +
+            '<div class="btn-group">' +
+              '<a href="/teacher/student-detail.html?id=' + s.id + '" class="btn btn-sm btn-outline">Detail</a>' +
+              '<button class="btn btn-sm btn-outline" onclick="openEditModal(\'' + s.id + '\')">Edit</button>' +
+              '<button class="btn btn-sm btn-danger" onclick="openDeleteModal(\'' + s.id + '\', \'' + (s.full_name || '').replace(/'/g, "\\'") + '\')">Hapus</button>' +
+            '</div>' +
+          '</td>' +
+        '</tr>';
+      }).join('');
+
+      document.getElementById('students-container').innerHTML =
+        '<div class="table-container">' +
+          '<table>' +
+            '<thead>' +
+              '<tr>' +
+                '<th>No</th>' +
+                '<th>Nama / NIS</th>' +
+                '<th>Kelas</th>' +
+                '<th>Akurasi</th>' +
+                '<th>Total Soal</th>' +
+                '<th>Aksi</th>' +
+              '</tr>' +
+            '</thead>' +
+            '<tbody>' + rows + '</tbody>' +
+          '</table>' +
+        '</div>';
+    }
+
+    function filterStudents() {
+      var query = document.getElementById('searchInput').value.toLowerCase();
+      var filtered = allStudents.filter(function(s) {
+        return (s.full_name && s.full_name.toLowerCase().includes(query)) ||
+               (s.nis && s.nis.toLowerCase().includes(query)) ||
+               (s.class && s.class.toLowerCase().includes(query));
+      });
+      renderStudents(filtered);
+    }
+
+    function openAddModal() {
+      document.getElementById('modal-title').textContent = 'Tambah Siswa';
+      document.getElementById('student-id').value = '';
+      document.getElementById('nis').value = '';
+      document.getElementById('full_name').value = '';
+      document.getElementById('student_class').value = '';
+      document.getElementById('password').value = '';
+      document.getElementById('student-modal').classList.add('active');
+    }
+
+    function openEditModal(id) {
+      var student = allStudents.find(function(s) { return s.id === id; });
+      if (!student) return;
+
+      document.getElementById('modal-title').textContent = 'Edit Siswa';
+      document.getElementById('student-id').value = student.id;
+      document.getElementById('nis').value = student.nis || '';
+      document.getElementById('full_name').value = student.full_name || '';
+      document.getElementById('student_class').value = student.class || '';
+      document.getElementById('password').value = '';
+      document.getElementById('student-modal').classList.add('active');
+    }
+
+    function closeStudentModal() {
+      document.getElementById('student-modal').classList.remove('active');
+    }
+
+    async function saveStudent(e) {
+      e.preventDefault();
+      var id = document.getElementById('student-id').value;
+      var data = {
+        nis: document.getElementById('nis').value.trim(),
+        full_name: document.getElementById('full_name').value.trim(),
+        class: document.getElementById('student_class').value.trim()
+      };
+      var password = document.getElementById('password').value;
+
+      if (!data.nis || !data.full_name || !data.class) {
+        alert('Semua field wajib diisi');
+        return;
+      }
+
+      try {
+        if (id) {
+          data.updated_at = new Date().toISOString();
+          await DB.updateStudent(id, data);
+        } else {
+          if (password) data.password = password;
+          await DB.createStudent(data);
+        }
+        closeStudentModal();
+        loadStudents();
+      } catch (err) {
+        alert('Gagal menyimpan siswa: ' + err.message);
+      }
+    }
+
+    function openDeleteModal(id, name) {
+      document.getElementById('delete-name').textContent = name;
+      document.getElementById('confirm-delete-btn').onclick = function() { deleteStudent(id); };
+      document.getElementById('delete-modal').classList.add('active');
+    }
+
+    function closeDeleteModal() {
+      document.getElementById('delete-modal').classList.remove('active');
+    }
+
+    async function deleteStudent(id) {
+      try {
+        await DB.deleteStudent(id);
+        closeDeleteModal();
+        loadStudents();
+      } catch (err) {
+        alert('Gagal menghapus siswa: ' + err.message);
+      }
+    }
+
+    function downloadTemplate() {
+      var csv = 'nis,nama,kelas\n';
+      csv += '1234567890,Ani Setiawati,3A\n';
+      csv += '1234567891,Budi Santoso,3A\n';
+      csv += '1234567892,Citra Dewi,3B\n';
+      var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = 'template-siswa.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function openCsvModal() {
+      csvData = [];
+      document.getElementById('csv-file').value = '';
+      document.getElementById('csv-preview').style.display = 'none';
+      document.getElementById('upload-csv-btn').disabled = true;
+      document.getElementById('csv-modal').classList.add('active');
+    }
+
+    function closeCsvModal() {
+      document.getElementById('csv-modal').classList.remove('active');
+    }
+
+    async function previewCSV(event) {
+      var file = event.target.files[0];
+      if (!file) return;
+
+      var text = await file.text();
+      csvData = await DB.parseCSV(text);
+
+      if (csvData.length === 0) {
+        document.getElementById('csv-preview').style.display = 'none';
+        document.getElementById('upload-csv-btn').disabled = true;
+        alert('Tidak ada data ditemukan dalam file CSV');
+        return;
+      }
+
+      var tbody = csvData.map(function(row) {
+        return '<tr><td>' + row.nis + '</td><td>' + row.full_name + '</td><td>' + row.class + '</td></tr>';
+      }).join('');
+
+      document.getElementById('csv-preview-body').innerHTML = tbody;
+      document.getElementById('csv-count').textContent = csvData.length;
+      document.getElementById('csv-preview').style.display = 'block';
+      document.getElementById('upload-csv-btn').disabled = false;
+    }
+
+    async function uploadCSV() {
+      if (csvData.length === 0) return;
+
+      var confirmUpload = confirm('Akan menambahkan ' + csvData.length + ' siswa. Lanjutkan?');
+      if (!confirmUpload) return;
+
+      document.getElementById('upload-csv-btn').disabled = true;
+      var success = 0;
+      var failed = 0;
+
+      for (var i = 0; i < csvData.length; i++) {
+        try {
+          await DB.createStudent(csvData[i]);
+          success++;
+        } catch (err) {
+          failed++;
+        }
+      }
+
+      alert('Upload selesai: ' + success + ' berhasil, ' + failed + ' gagal');
+      closeCsvModal();
+      loadStudents();
+    }
+
+    loadStudents();
+  </script>
+</body>
+</html>

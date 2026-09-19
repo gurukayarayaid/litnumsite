@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Progres Saya - Literasi Numerasi</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="/js/firebase-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/db.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>Literasi Numerasi</h2>
+        <div class="subtitle">Halo, <span id="student-name">Siswa</span></div>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="/student/dashboard.html"><span class="icon">Dashboard</span></a>
+        <a href="/student/exercise.html"><span class="icon">Latihan</span></a>
+        <a href="/student/progress.html" class="active"><span class="icon">Progres</span></a>
+        <a href="#" onclick="Auth.logout(); window.location.href='/login.html';"><span class="icon">Keluar</span></a>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <div class="page-header">
+        <h1>Progres Saya</h1>
+      </div>
+
+      <div id="progress-content">
+        <div class="spinner"></div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    if (!Auth.requireRole('siswa')) throw new Error('Unauthorized');
+
+    var user = Auth.getUser();
+    document.getElementById('student-name').textContent = user.name;
+
+    async function loadProgress() {
+      try {
+        var data = await DB.getStudentProgress(user.studentId);
+
+        var html = '';
+
+        if (data.detailedStats.length === 0) {
+          html = `
+            <div class="card">
+              <div class="empty-state">
+                <div class="icon">📊</div>
+                <h3>Belum ada progres</h3>
+                <p style="margin: 12px 0;">Mulai latihan untuk melihat progresmu!</p>
+                <a href="/student/exercise.html" class="btn btn-primary">Mulai Latihan</a>
+              </div>
+            </div>
+          `;
+        } else {
+          // Group by category
+          var categories = {};
+          data.detailedStats.forEach(function(s) {
+            if (!categories[s.category]) categories[s.category] = [];
+            categories[s.category].push(s);
+          });
+
+          var catNames = {
+            membaca: { name: 'Membaca', icon: '📖', color: '#3b82f6' },
+            menulis: { name: 'Menulis', icon: '✍️', color: '#ec4899' },
+            berhitung: { name: 'Berhitung', icon: '🔢', color: '#22c55e' }
+          };
+
+          // Summary stats
+          var totalAll = data.detailedStats.reduce(function(a, s) { return a + s.total_attempts; }, 0);
+          var correctAll = data.detailedStats.reduce(function(a, s) { return a + s.correct_attempts; }, 0);
+          var overallAll = totalAll > 0 ? Math.round(correctAll / totalAll * 100) : 0;
+
+          html = `
+            <div class="stats-grid" style="margin-bottom: 24px;">
+              <div class="stat-card">
+                <div class="stat-label">Total Latihan</div>
+                <div class="stat-value text-primary">${totalAll}</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Jawaban Benar</div>
+                <div class="stat-value text-success">${correctAll}</div>
+              </div>
+              <div class="stat-card">
+                <div class="stat-label">Akurasi Keseluruhan</div>
+                <div class="stat-value ${overallAll >= 70 ? 'text-success' : 'text-warning'}">${overallAll}%</div>
+              </div>
+            </div>
+          `;
+
+          Object.keys(categories).forEach(function(cat) {
+            var catInfo = catNames[cat] || { name: cat, icon: '📝', color: '#64748b' };
+            var stats = categories[cat];
+
+            var totalAttempts = stats.reduce(function(a, s) { return a + s.total_attempts; }, 0);
+            var totalCorrect = stats.reduce(function(a, s) { return a + s.correct_attempts; }, 0);
+            var overallAccuracy = totalAttempts > 0 ? Math.round(totalCorrect / totalAttempts * 100) : 0;
+
+            var accClass = overallAccuracy >= 70 ? 'badge-success' : overallAccuracy >= 50 ? 'badge-warning' : 'badge-danger';
+
+            html += `
+              <div class="card" style="margin-bottom: 20px;">
+                <div class="card-header">
+                  <h3 style="display: flex; align-items: center; gap: 8px;">
+                    <span>${catInfo.icon}</span>
+                    ${catInfo.name}
+                    <span class="badge ${accClass}" style="margin-left: 8px;">${overallAccuracy}%</span>
+                  </h3>
+                </div>
+                <div class="table-container">
+                  <table>
+                    <thead>
+                      <tr><th>Sub Kategori</th><th>Level</th><th>Soal</th><th>Benar</th><th>Akurasi</th></tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            stats.forEach(function(s) {
+              var acc = s.accuracy || 0;
+              var accBadge = acc >= 70 ? 'badge-success' : acc >= 50 ? 'badge-warning' : 'badge-danger';
+
+              var dots = '';
+              for (var d = 1; d <= 5; d++) {
+                dots += '<div class="difficulty-dot ' + (d <= s.difficulty ? 'active' : '') + '"></div>';
+              }
+
+              html += `
+                <tr>
+                  <td style="font-weight: 500;">${s.subcategory}</td>
+                  <td>
+                    <div class="difficulty-dots">${dots}</div>
+                  </td>
+                  <td>${s.total_attempts}</td>
+                  <td>${s.correct_attempts}</td>
+                  <td>
+                    <span class="badge ${accBadge}">${acc}%</span>
+                  </td>
+                </tr>
+              `;
+            });
+
+            html += '</tbody></table></div></div>';
+          });
+        }
+
+        document.getElementById('progress-content').innerHTML = html;
+      } catch (err) {
+        document.getElementById('progress-content').innerHTML =
+          '<div class="alert alert-danger">Gagal memuat data progres</div>';
+      }
+    }
+
+    loadProgress();
+  </script>
+</body>
+</html>

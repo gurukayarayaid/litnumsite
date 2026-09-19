@@ -5,8 +5,8 @@ data/litnum.json
 tambah murid/
 tambah soal/
 tambah/
-scripts/
 jalankan.bat
 hentikan.bat
 desktop.ini
 **/desktop.ini
+scripts/serviceAccountKey.json

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - Literasi Numerasi</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="/js/firebase-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/db.js"></script>
+</head>
+<body>
+  <div class="login-container">
+    <div class="login-card">
+      <h1>Literasi Numerasi</h1>
+      <p class="subtitle">Latihan Interaktif Kelas 3 SD</p>
+
+      <div class="login-tabs">
+        <button class="login-tab active" onclick="switchTab('guru')">Guru</button>
+        <button class="login-tab" onclick="switchTab('siswa')">Siswa</button>
+      </div>
+
+      <div id="alert-box"></div>
+
+      <!-- Guru Login -->
+      <form id="guru-form" class="login-form active" onsubmit="handleGuruLogin(event)">
+        <div class="form-group">
+          <label for="guru-password">Password Guru</label>
+          <input type="password" id="guru-password" class="form-control" placeholder="Masukkan password guru" required>
+        </div>
+        <button type="submit" class="login-btn">Masuk sebagai Guru</button>
+      </form>
+
+      <!-- Siswa Login -->
+      <form id="siswa-form" class="login-form" onsubmit="handleSiswaLogin(event)">
+        <div class="form-group">
+          <label for="siswa-class">Kelas</label>
+          <select id="siswa-class" class="form-control" required onchange="loadStudents()">
+            <option value="">-- Pilih Kelas --</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="siswa-name">Nama</label>
+          <select id="siswa-name" class="form-control" required onchange="autoFillNIS()">
+            <option value="">-- Pilih Nama --</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="siswa-nis">Password (NIS)</label>
+          <input type="password" id="siswa-nis" class="form-control" placeholder="Otomatis terisi dari NIS" required>
+        </div>
+        <button type="submit" class="login-btn">Masuk sebagai Siswa</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    function showAlert(message, type) {
+      document.getElementById('alert-box').innerHTML =
+        '<div class="alert alert-' + type + '">' + message + '</div>';
+      setTimeout(function() { document.getElementById('alert-box').innerHTML = ''; }, 5000);
+    }
+
+    function switchTab(role) {
+      document.querySelectorAll('.login-tab').forEach(function(tab) { tab.classList.remove('active'); });
+      document.querySelectorAll('.login-form').forEach(function(form) { form.classList.remove('active'); });
+
+      if (role === 'guru') {
+        document.querySelector('.login-tab:first-child').classList.add('active');
+        document.getElementById('guru-form').classList.add('active');
+      } else {
+        document.querySelector('.login-tab:last-child').classList.add('active');
+        document.getElementById('siswa-form').classList.add('active');
+        loadClasses();
+      }
+    }
+
+    async function loadClasses() {
+      try {
+        var classes = await DB.getUniqueClasses();
+        var select = document.getElementById('siswa-class');
+        select.innerHTML = '<option value="">-- Pilih Kelas --</option>';
+        classes.forEach(function(c) {
+          var opt = document.createElement('option');
+          opt.value = c;
+          opt.textContent = 'Kelas ' + c;
+          select.appendChild(opt);
+        });
+      } catch (err) {
+        showAlert('Gagal memuat kelas', 'danger');
+      }
+    }
+
+    async function loadStudents() {
+      var kelas = document.getElementById('siswa-class').value;
+      var nameSelect = document.getElementById('siswa-name');
+      var nisInput = document.getElementById('siswa-nis');
+
+      nameSelect.innerHTML = '<option value="">-- Pilih Nama --</option>';
+      nisInput.value = '';
+
+      if (!kelas) return;
+
+      try {
+        var students = await DB.getStudentsByClass(kelas);
+        students.forEach(function(s) {
+          var opt = document.createElement('option');
+          opt.value = s.nis;
+          opt.textContent = s.full_name;
+          nameSelect.appendChild(opt);
+        });
+      } catch (err) {
+        showAlert('Gagal memuat data siswa', 'danger');
+      }
+    }
+
+    function autoFillNIS() {
+      var nis = document.getElementById('siswa-name').value;
+      document.getElementById('siswa-nis').value = nis;
+    }
+
+    async function handleGuruLogin(e) {
+      e.preventDefault();
+      var password = document.getElementById('guru-password').value;
+
+      try {
+        await Auth.loginGuru(password);
+        window.location.href = '/teacher/dashboard.html';
+      } catch (err) {
+        showAlert(err.message, 'danger');
+      }
+    }
+
+    async function handleSiswaLogin(e) {
+      e.preventDefault();
+      var nis = document.getElementById('siswa-name').value;
+      var password = document.getElementById('siswa-nis').value;
+
+      if (!nis) {
+        showAlert('Pilih nama siswa terlebih dahulu', 'danger');
+        return;
+      }
+
+      try {
+        await Auth.loginSiswa(nis, password);
+        window.location.href = '/student/dashboard.html';
+      } catch (err) {
+        showAlert(err.message, 'danger');
+      }
+    }
+
+    // Check if already logged in
+    var user = Auth.getUser();
+    if (user) {
+      window.location.href = user.role === 'guru' ? '/teacher/dashboard.html' : '/student/dashboard.html';
+    }
+  </script>
+</body>
+</html>

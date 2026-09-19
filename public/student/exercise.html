@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Latihan - Literasi Numerasi</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="/js/firebase-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/db.js"></script>
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>Literasi Numerasi</h2>
+        <div class="subtitle">Halo, <span id="student-name">Siswa</span></div>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="/student/dashboard.html"><span class="icon">Dashboard</span></a>
+        <a href="/student/exercise.html" class="active"><span class="icon">Latihan</span></a>
+        <a href="/student/progress.html"><span class="icon">Progres</span></a>
+        <a href="#" onclick="Auth.logout(); window.location.href='/login.html';"><span class="icon">Keluar</span></a>
+      </nav>
+    </aside>
+
+    <main class="main-content">
+      <div id="exercise-container" class="exercise-container">
+        <!-- Category Selection -->
+        <div id="category-select">
+          <h2 style="margin-bottom: 8px;">Pilih Kategori Latihan</h2>
+          <p style="color: var(--text-secondary); margin-bottom: 24px;">Soal akan menyesuaikan dengan kemampuanmu</p>
+
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+            <div class="card" style="cursor: pointer; text-align: center; padding: 30px;" onclick="startExercise('membaca')">
+              <div style="font-size: 2.5rem; margin-bottom: 12px;">📖</div>
+              <h3>Membaca</h3>
+              <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;">Pengenalan huruf, kata, kalimat</p>
+            </div>
+            <div class="card" style="cursor: pointer; text-align: center; padding: 30px;" onclick="startExercise('menulis')">
+              <div style="font-size: 2.5rem; margin-bottom: 12px;">✍️</div>
+              <h3>Menulis</h3>
+              <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;">Menulis huruf, kata, kalimat</p>
+            </div>
+            <div class="card" style="cursor: pointer; text-align: center; padding: 30px;" onclick="startExercise('berhitung')">
+              <div style="font-size: 2.5rem; margin-bottom: 12px;">🔢</div>
+              <h3>Berhitung</h3>
+              <p style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 4px;">Penjumlahan, pengurangan, perkalian, pembagian</p>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top: 24px; text-align: center; padding: 24px;">
+            <h3 style="margin-bottom: 8px;">Atau Latihan Campuran</h3>
+            <p style="color: var(--text-secondary); margin-bottom: 16px;">Semua kategori secara acak</p>
+            <button class="btn btn-primary" onclick="startExercise('campuran')" style="padding: 10px 24px;">Latihan Campuran</button>
+          </div>
+        </div>
+
+        <!-- Exercise Area -->
+        <div id="exercise-area" style="display: none;">
+          <div class="exercise-progress">
+            <span id="progress-text" style="font-size: 0.85rem; color: var(--text-secondary);">Soal 1 / 10</span>
+            <div class="progress-bar">
+              <div class="progress-fill" id="progress-fill" style="width: 0%;"></div>
+            </div>
+            <span id="score-text" style="font-size: 0.85rem; font-weight: 600; color: var(--success);">0 benar</span>
+          </div>
+
+          <div id="question-container"></div>
+
+          <div class="exercise-nav">
+            <button class="btn btn-outline" id="prev-btn" onclick="prevQuestion()" style="display: none;">Sebelumnya</button>
+            <button class="btn btn-primary" id="next-btn" onclick="nextQuestion()" style="display: none;">Selanjutnya</button>
+            <button class="btn btn-success" id="finish-btn" onclick="finishExercise()" style="display: none;">Selesai</button>
+          </div>
+        </div>
+
+        <!-- Results -->
+        <div id="results-area" style="display: none;"></div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    if (!Auth.requireRole('siswa')) throw new Error('Unauthorized');
+
+    var user = Auth.getUser();
+    document.getElementById('student-name').textContent = user.name;
+
+    var currentCategory = 'all';
+    var exercises = [];
+    var currentIndex = 0;
+    var answers = {};
+    var score = 0;
+    var currentDifficulty = 1;
+
+    var audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      var osc = audioCtx.createOscillator();
+      var gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      gain.gain.value = 0.3;
+
+      if (type === 'correct') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523.25, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1);
+        osc.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.2);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + 0.4);
+      } else if (type === 'wrong') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(150, audioCtx.currentTime + 0.15);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + 0.3);
+      } else if (type === 'intro') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(261.63, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(329.63, audioCtx.currentTime + 0.15);
+        osc.frequency.setValueAtTime(392, audioCtx.currentTime + 0.3);
+        osc.frequency.setValueAtTime(523.25, audioCtx.currentTime + 0.45);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.7);
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + 0.7);
+      }
+    }
+
+    // Check URL params for category
+    var params = new URLSearchParams(window.location.search);
+    var cat = params.get('category');
+    if (cat) {
+      startExercise(cat);
+    }
+
+    async function startExercise(category) {
+      currentCategory = category;
+      currentIndex = 0;
+      answers = {};
+      score = 0;
+
+      try {
+        var data = await DB.getExercisesForPractice(user.studentId, category === 'campuran' ? 'all' : category, 10);
+
+        if (data.exercises.length === 0) {
+          document.getElementById('category-select').innerHTML = `
+            <div class="empty-state">
+              <div class="icon">📝</div>
+              <h3>Belum ada soal tersedia</h3>
+              <p style="margin: 12px 0;">Silakan pilih kategori lain atau hubungi guru.</p>
+              <button class="btn btn-outline" onclick="location.reload()">Kembali</button>
+            </div>
+          `;
+          return;
+        }
+
+        exercises = data.exercises;
+        currentDifficulty = data.currentDifficulty;
+
+        document.getElementById('category-select').style.display = 'none';
+        document.getElementById('exercise-area').style.display = 'block';
+
+        playSound('intro');
+        renderQuestion();
+      } catch (err) {
+        alert('Gagal memuat soal. Silakan coba lagi.');
+      }
+    }
+
+    function renderQuestion() {
+      var q = exercises[currentIndex];
+      var total = exercises.length;
+
+      document.getElementById('progress-text').textContent = 'Soal ' + (currentIndex + 1) + ' / ' + total;
+      document.getElementById('progress-fill').style.width = ((currentIndex + 1) / total * 100) + '%';
+      document.getElementById('score-text').textContent = score + ' benar';
+
+      var categoryClass = 'category-membaca';
+      if (q.category === 'menulis') categoryClass = 'category-menulis';
+      if (q.category === 'berhitung') categoryClass = 'category-berhitung';
+
+      var diffDots = '';
+      for (var d = 1; d <= 5; d++) {
+        diffDots += '<div class="difficulty-dot ' + (d <= q.difficulty ? 'active' : '') + '"></div>';
+      }
+
+      var html = `
+        <div class="question-card">
+          <span class="question-category ${categoryClass}">${q.category} - ${q.subcategory}</span>
+          <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+            <span style="font-size: 0.75rem; color: var(--text-secondary);">Level ${q.difficulty}</span>
+            <div class="difficulty-dots">${diffDots}</div>
+          </div>
+          <div class="question-text">${q.question}</div>
+      `;
+
+      var savedAnswer = answers[q.id];
+
+      if (q.type === 'pilihan_ganda' && q.options) {
+        html += '<div class="options-list">';
+        q.options.forEach(function(opt) {
+          var selected = savedAnswer === opt ? 'selected' : '';
+          var escapedOpt = opt.replace(/'/g, "\\'");
+          html += '<button class="option-btn ' + selected + '" onclick="selectOption(\'' + q.id + '\', \'' + escapedOpt + '\', this)" data-value="' + opt + '">' + opt + '</button>';
+        });
+        html += '</div>';
+      } else {
+        html += `
+          <div class="fill-in-container">
+            <input type="text" class="fill-in-input" id="input-${q.id}" placeholder="Ketik jawabanmu..." value="${savedAnswer || ''}" oninput="answers['${q.id}'] = this.value">
+          </div>
+        `;
+      }
+
+      html += '<div id="feedback-' + q.id + '"></div></div>';
+      document.getElementById('question-container').innerHTML = html;
+
+      // Navigation
+      document.getElementById('prev-btn').style.display = currentIndex > 0 ? 'inline-flex' : 'none';
+      document.getElementById('next-btn').style.display = currentIndex < total - 1 ? 'inline-flex' : 'none';
+      document.getElementById('finish-btn').style.display = currentIndex === total - 1 ? 'inline-flex' : 'none';
+    }
+
+    function selectOption(exerciseId, value, btn) {
+      answers[exerciseId] = value;
+      document.querySelectorAll('.option-btn').forEach(function(b) { b.classList.remove('selected'); });
+      btn.classList.add('selected');
+    }
+
+    function prevQuestion() {
+      if (currentIndex > 0) {
+        currentIndex--;
+        renderQuestion();
+      }
+    }
+
+    function nextQuestion() {
+      if (currentIndex < exercises.length - 1) {
+        currentIndex++;
+        renderQuestion();
+      }
+    }
+
+    async function finishExercise() {
+      var totalCorrect = 0;
+      var results = [];
+
+      for (var i = 0; i < exercises.length; i++) {
+        var q = exercises[i];
+        var answer = answers[q.id] || '';
+        if (!answer) continue;
+
+        try {
+          var data = await DB.submitAttempt(user.studentId, q.id, answer, 0);
+
+          if (data.isCorrect) {
+            totalCorrect++;
+            playSound('correct');
+          } else {
+            playSound('wrong');
+          }
+
+          results.push({
+            question: q.question,
+            studentAnswer: answer,
+            correctAnswer: data.correctAnswer,
+            isCorrect: data.isCorrect,
+            explanation: data.explanation,
+            category: q.category,
+            subcategory: q.subcategory
+          });
+        } catch (err) {
+          console.error('Error submitting answer:', err);
+        }
+      }
+
+      var accuracy = exercises.length > 0 ? Math.round((totalCorrect / exercises.length) * 100) : 0;
+
+      document.getElementById('exercise-area').style.display = 'none';
+      document.getElementById('results-area').style.display = 'block';
+
+      var badgeClass = accuracy >= 70 ? 'badge-success' : accuracy >= 50 ? 'badge-warning' : 'badge-danger';
+      var badgeText = accuracy >= 70 ? 'Bagus! Terus pertahankan!' : accuracy >= 50 ? 'Cukup baik, terus berlatih!' : 'Semangat! Ayo berlatih lagi!';
+      var emoji = accuracy >= 70 ? '🎉' : accuracy >= 50 ? '👍' : '💪';
+
+      var resultsHtml = `
+        <div class="card results-card">
+          <div style="font-size: 3rem; margin-bottom: 16px;">${emoji}</div>
+          <div class="score">${accuracy}%</div>
+          <div class="score-label">${totalCorrect} dari ${exercises.length} soal benar</div>
+          <div style="margin-bottom: 24px;">
+            <span class="badge ${badgeClass}" style="font-size: 0.9rem; padding: 6px 16px;">${badgeText}</span>
+          </div>
+          <div style="display: flex; gap: 12px; justify-content: center;">
+            <button class="btn btn-primary" onclick="location.reload()">Latihan Lagi</button>
+            <a href="/student/dashboard.html" class="btn btn-outline">Kembali ke Dashboard</a>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top: 24px;">
+          <div class="card-header"><h3>Detail Jawaban</h3></div>
+      `;
+
+      results.forEach(function(r, idx) {
+        resultsHtml += `
+          <div style="padding: 16px 0; border-bottom: 1px solid var(--border);">
+            <div style="display: flex; align-items: start; gap: 12px;">
+              <div class="avatar" style="background: ${r.isCorrect ? '#dcfce7' : '#fee2e2'}; color: ${r.isCorrect ? '#166534' : '#991b1b'}; min-width: 32px;">${r.isCorrect ? '✓' : '✗'}</div>
+              <div style="flex: 1;">
+                <div style="font-weight: 500; margin-bottom: 4px;">${idx + 1}. ${r.question}</div>
+                <div style="font-size: 0.85rem; color: var(--text-secondary);">
+                  Jawabanmu: <span style="color: ${r.isCorrect ? 'var(--success)' : 'var(--danger)'}; font-weight: 500;">${r.studentAnswer}</span>
+                  ${!r.isCorrect ? '<br>Jawaban benar: <span style="color: var(--success); font-weight: 500;">' + r.correctAnswer + '</span>' : ''}
+                </div>
+                ${r.explanation ? '<div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 4px; padding: 8px; background: var(--bg); border-radius: 6px;">💡 ' + r.explanation + '</div>' : ''}
+              </div>
+            </div>
+          </div>
+        `;
+      });
+
+      resultsHtml += '</div>';
+
+      document.getElementById('results-area').innerHTML = resultsHtml;
+    }
+  </script>
+</body>
+</html>

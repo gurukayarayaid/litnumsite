@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laporan - Literasi Numerasi</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="/js/firebase-config.js"></script>
+  <script src="/js/auth.js"></script>
+  <script src="/js/db.js"></script>
+  <style>
+    .report-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+    .print-date { font-size: 0.8rem; color: var(--text-secondary); }
+  </style>
+</head>
+<body>
+  <div class="app-container">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <h2>Literasi Numerasi</h2>
+        <div class="subtitle">Panel Guru</div>
+      </div>
+      <nav class="sidebar-nav">
+        <a href="/teacher/dashboard.html"><span class="icon">📊</span> Dashboard</a>
+        <a href="/teacher/students.html"><span class="icon">👥</span> Siswa</a>
+        <a href="/teacher/exercises.html"><span class="icon">📝</span> Soal</a>
+        <a href="/teacher/reports.html" class="active"><span class="icon">📈</span> Laporan</a>
+      </nav>
+      <div style="padding: 20px; margin-top: auto; border-top: 1px solid var(--border);">
+        <button class="btn btn-outline" style="width: 100%;" onclick="Auth.logout(); window.location.href='/login.html'">Keluar</button>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <div class="report-header">
+        <div>
+          <h1>Laporan Kelas</h1>
+          <div class="print-date" id="generatedDate"></div>
+        </div>
+        <button class="btn btn-primary no-print" onclick="window.print()">🖨 Cetak Laporan</button>
+      </div>
+
+      <div id="loadingState" class="spinner"></div>
+      <div id="errorState" class="alert alert-danger" style="display: none;"></div>
+      <div id="contentState" style="display: none;">
+        <div class="stats-grid" id="summaryStats"></div>
+
+        <div class="card" style="margin-bottom: 24px;">
+          <div class="card-header">
+            <h3>Statistik per Kategori & Sub Kategori</h3>
+          </div>
+          <div class="table-container">
+            <table id="categoryStatsTable">
+              <thead>
+                <tr>
+                  <th>Kategori</th>
+                  <th>Sub Kategori</th>
+                  <th>Total Percobaan</th>
+                  <th>Benar</th>
+                  <th>Akurasi</th>
+                  <th>Visual</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h3>Seluruh Siswa</h3>
+          </div>
+          <div class="table-container">
+            <table id="studentsTable">
+              <thead>
+                <tr>
+                  <th>No</th>
+                  <th>Nama</th>
+                  <th>NIS</th>
+                  <th>Kelas</th>
+                  <th>Total Percobaan</th>
+                  <th>Benar</th>
+                  <th>Akurasi</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div id="studentsEmpty" class="empty-state" style="display: none;">
+            <div class="icon">👥</div>
+            <p>Belum ada data siswa.</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    if (!Auth.requireRole('guru')) throw new Error('Unauthorized');
+
+    loadReports();
+
+    function loadReports() {
+      DB.getReportsAll().then(function(data) {
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('contentState').style.display = 'block';
+
+        var genDate = new Date(data.generatedAt);
+        document.getElementById('generatedDate').textContent = 'Dibuat pada: ' + genDate.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) + ' ' + genDate.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+        var totalStudents = data.students.length;
+        var totalAttempts = 0;
+        var totalCorrect = 0;
+        var studentsWithAttempts = 0;
+
+        data.students.forEach(function(s) {
+          totalAttempts += s.total_attempts;
+          totalCorrect += s.correct_attempts;
+          if (s.total_attempts > 0) studentsWithAttempts++;
+        });
+
+        var overallAccuracy = totalAttempts > 0 ? Math.round(totalCorrect / totalAttempts * 100) : 0;
+        var avgAccuracy = studentsWithAttempts > 0 ? Math.round(data.students.reduce(function(sum, s) { return sum + s.accuracy; }, 0) / studentsWithAttempts) : 0;
+
+        var bestStudent = data.students.filter(function(s) { return s.total_attempts > 0; }).sort(function(a, b) { return b.accuracy - a.accuracy; })[0];
+        var weakestStudent = data.students.filter(function(s) { return s.total_attempts > 0; }).sort(function(a, b) { return a.accuracy - b.accuracy; })[0];
+
+        document.getElementById('summaryStats').innerHTML =
+          '<div class="stat-card"><div class="stat-label">Total Siswa</div><div class="stat-value text-primary">' + totalStudents + '</div></div>' +
+          '<div class="stat-card"><div class="stat-label">Total Percobaan</div><div class="stat-value">' + totalAttempts + '</div></div>' +
+          '<div class="stat-card"><div class="stat-label">Rata-rata Akurasi Kelas</div><div class="stat-value ' + (overallAccuracy >= 70 ? 'text-success' : overallAccuracy >= 50 ? 'text-warning' : 'text-danger') + '">' + overallAccuracy + '%</div></div>' +
+          '<div class="stat-card"><div class="stat-label">Rata-rata Akurasi Siswa Aktif</div><div class="stat-value">' + avgAccuracy + '%</div></div>' +
+          '<div class="stat-card"><div class="stat-label">Siswa Aktif</div><div class="stat-value text-success">' + studentsWithAttempts + '</div></div>' +
+          '<div class="stat-card"><div class="stat-label">Siswa Belum Aktif</div><div class="stat-value text-danger">' + (totalStudents - studentsWithAttempts) + '</div></div>';
+
+        var catBody = document.querySelector('#categoryStatsTable tbody');
+        catBody.innerHTML = '';
+        if (data.categoryStats.length === 0) {
+          catBody.innerHTML = '<tr><td colspan="6" style="text-align:center; color:var(--text-secondary);">Belum ada data</td></tr>';
+        } else {
+          var sorted = data.categoryStats.sort(function(a, b) {
+            if (a.category < b.category) return -1;
+            if (a.category > b.category) return 1;
+            return 0;
+          });
+          sorted.forEach(function(cat) {
+            var badgeClass = cat.accuracy >= 70 ? 'badge-success' : cat.accuracy >= 50 ? 'badge-warning' : 'badge-danger';
+            var barWidth = cat.accuracy;
+            var barColor = cat.accuracy >= 70 ? 'var(--success)' : cat.accuracy >= 50 ? 'var(--warning)' : 'var(--danger)';
+            catBody.innerHTML += '<tr>' +
+              '<td>' + cat.category + '</td>' +
+              '<td>' + cat.subcategory + '</td>' +
+              '<td>' + cat.total + '</td>' +
+              '<td>' + cat.correct + '</td>' +
+              '<td><span class="badge ' + badgeClass + '">' + cat.accuracy + '%</span></td>' +
+              '<td style="min-width:120px;"><div class="progress-bar"><div class="progress-fill" style="width:' + barWidth + '%; background:' + barColor + ';"></div></div></td>' +
+              '</tr>';
+          });
+        }
+
+        var stuBody = document.querySelector('#studentsTable tbody');
+        var stuEmpty = document.getElementById('studentsEmpty');
+        stuBody.innerHTML = '';
+        if (data.students.length === 0) {
+          stuEmpty.style.display = 'block';
+        } else {
+          stuEmpty.style.display = 'none';
+          var sortedStudents = data.students.sort(function(a, b) { return b.accuracy - a.accuracy; });
+          sortedStudents.forEach(function(s, idx) {
+            var badgeClass = s.accuracy >= 70 ? 'badge-success' : s.accuracy >= 50 ? 'badge-warning' : s.total_attempts === 0 ? 'badge-primary' : 'badge-danger';
+            var accuracyText = s.total_attempts > 0 ? s.accuracy + '%' : '-';
+            var lastActivity = s.last_activity ? new Date(s.last_activity).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-';
+            stuBody.innerHTML += '<tr>' +
+              '<td>' + (idx + 1) + '</td>' +
+              '<td>' + s.full_name + '</td>' +
+              '<td>' + (s.nis || '-') + '</td>' +
+              '<td>' + (s.class || '-') + '</td>' +
+              '<td>' + s.total_attempts + '</td>' +
+              '<td>' + s.correct_attempts + '</td>' +
+              '<td><span class="badge ' + badgeClass + '">' + accuracyText + '</span></td>' +
+              '<td><a href="/teacher/student-detail.html?id=' + s.id + '" class="btn btn-outline btn-sm">Detail</a></td>' +
+              '</tr>';
+          });
+        }
+      }).catch(function(error) {
+        document.getElementById('loadingState').style.display = 'none';
+        document.getElementById('errorState').style.display = 'block';
+        document.getElementById('errorState').textContent = 'Gagal memuat laporan: ' + error.message;
+      });
+    }
+  </script>
+</body>
+</html>

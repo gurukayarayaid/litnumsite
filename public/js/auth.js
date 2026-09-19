@@ -22,7 +22,8 @@ const Auth = {
   requireRole(role) {
     const user = this.getUser();
     if (!user || user.role !== role) {
-      window.location.href = '/login.html';
+      const depth = (window.location.pathname.match(/\//g) || []).length;
+      window.location.href = depth > 2 ? '../login.html' : 'login.html';
       return false;
     }
     return true;

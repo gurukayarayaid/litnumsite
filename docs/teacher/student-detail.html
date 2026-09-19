@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Detail Siswa - Literasi Numerasi</title>
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="../css/style.css">
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="/js/firebase-config.js"></script>
-  <script src="/js/auth.js"></script>
-  <script src="/js/db.js"></script>
+  <script src="../js/firebase-config.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/db.js"></script>
 </head>
 <body>
   <div class="app-container">
@@ -19,20 +19,20 @@
         <div class="subtitle">Panel Guru</div>
       </div>
       <nav class="sidebar-nav">
-        <a href="/teacher/dashboard.html"><span class="icon">📊</span> Dashboard</a>
-        <a href="/teacher/students.html" class="active"><span class="icon">👥</span> Siswa</a>
-        <a href="/teacher/exercises.html"><span class="icon">📝</span> Soal</a>
-        <a href="/teacher/reports.html"><span class="icon">📈</span> Laporan</a>
+        <a href="dashboard.html"><span class="icon">📊</span> Dashboard</a>
+        <a href="students.html" class="active"><span class="icon">👥</span> Siswa</a>
+        <a href="exercises.html"><span class="icon">📝</span> Soal</a>
+        <a href="reports.html"><span class="icon">📈</span> Laporan</a>
       </nav>
       <div style="padding: 20px; margin-top: auto; border-top: 1px solid var(--border);">
-        <button class="btn btn-outline" style="width: 100%;" onclick="Auth.logout(); window.location.href='/login.html'">Keluar</button>
+        <button class="btn btn-outline" style="width: 100%;" onclick="Auth.logout(); window.location.href='../login.html'">Keluar</button>
       </div>
     </aside>
 
     <main class="main-content">
       <div class="page-header">
         <div>
-          <a href="/teacher/students.html" class="btn btn-outline btn-sm" style="margin-bottom: 8px;">← Kembali ke Daftar Siswa</a>
+          <a href="students.html" class="btn btn-outline btn-sm" style="margin-bottom: 8px;">← Kembali ke Daftar Siswa</a>
           <h1 id="studentName">Detail Siswa</h1>
         </div>
       </div>

@@ -1,16 +1,16 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Manajemen Siswa - Guru | LitNum</title>
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="../css/style.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="/js/firebase-config.js"></script>
-  <script src="/js/auth.js"></script>
-  <script src="/js/db.js"></script>
+  <script src="../js/firebase-config.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/db.js"></script>
 </head>
 <body>
   <div class="app-container">
@@ -20,16 +20,16 @@
         <div class="subtitle">Panel Guru</div>
       </div>
       <nav class="sidebar-nav">
-        <a href="/teacher/dashboard.html">
+        <a href="dashboard.html">
           <span class="icon">Dashboard</span>
         </a>
-        <a href="/teacher/students.html" class="active">
+        <a href="students.html" class="active">
           <span class="icon">Murid</span>
         </a>
-        <a href="/teacher/exercises.html">
+        <a href="exercises.html">
           <span class="icon">Soal</span>
         </a>
-        <a href="/teacher/reports.html">
+        <a href="reports.html">
           <span class="icon">Laporan</span>
         </a>
         <a href="#" onclick="handleLogout()">
@@ -161,7 +161,7 @@
 
     function handleLogout() {
       Auth.logout();
-      window.location.href = '/login.html';
+      window.location.href = '../login.html';
     }
 
     async function loadStudents() {
@@ -203,7 +203,7 @@
           '<td>' + s.total_attempts + '</td>' +
           '<td>' +
             '<div class="btn-group">' +
-              '<a href="/teacher/student-detail.html?id=' + s.id + '" class="btn btn-sm btn-outline">Detail</a>' +
+              '<a href="student-detail.html?id=' + s.id + '" class="btn btn-sm btn-outline">Detail</a>' +
               '<button class="btn btn-sm btn-outline" onclick="openEditModal(\'' + s.id + '\')">Edit</button>' +
               '<button class="btn btn-sm btn-danger" onclick="openDeleteModal(\'' + s.id + '\', \'' + (s.full_name || '').replace(/'/g, "\\'") + '\')">Hapus</button>' +
             '</div>' +

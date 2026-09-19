@@ -4,13 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Progres Saya - Literasi Numerasi</title>
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="../css/style.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="/js/firebase-config.js"></script>
-  <script src="/js/auth.js"></script>
-  <script src="/js/db.js"></script>
+  <script src="../js/firebase-config.js"></script>
+  <script src="../js/auth.js"></script>
+  <script src="../js/db.js"></script>
 </head>
 <body>
   <div class="app-container">
@@ -20,10 +20,10 @@
         <div class="subtitle">Halo, <span id="student-name">Siswa</span></div>
       </div>
       <nav class="sidebar-nav">
-        <a href="/student/dashboard.html"><span class="icon">Dashboard</span></a>
-        <a href="/student/exercise.html"><span class="icon">Latihan</span></a>
-        <a href="/student/progress.html" class="active"><span class="icon">Progres</span></a>
-        <a href="#" onclick="Auth.logout(); window.location.href='/login.html';"><span class="icon">Keluar</span></a>
+        <a href="dashboard.html"><span class="icon">Dashboard</span></a>
+        <a href="exercise.html"><span class="icon">Latihan</span></a>
+        <a href="progress.html" class="active"><span class="icon">Progres</span></a>
+        <a href="#" onclick="Auth.logout(); window.location.href='../login.html';"><span class="icon">Keluar</span></a>
       </nav>
     </aside>
 
@@ -57,7 +57,7 @@
                 <div class="icon">📊</div>
                 <h3>Belum ada progres</h3>
                 <p style="margin: 12px 0;">Mulai latihan untuk melihat progresmu!</p>
-                <a href="/student/exercise.html" class="btn btn-primary">Mulai Latihan</a>
+                <a href="exercise.html" class="btn btn-primary">Mulai Latihan</a>
               </div>
             </div>
           `;

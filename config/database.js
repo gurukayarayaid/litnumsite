@@ -90,14 +90,14 @@ function initDatabase() {
   // Seed default admin
   const existingAdmin = find('users', u => u.username === 'admin');
   if (!existingAdmin) {
-    const hashedPassword = bcrypt.hashSync('admin123', 10);
+    const hashedPassword = bcrypt.hashSync('alal1010', 10);
     insert('users', {
       username: 'admin',
       password: hashedPassword,
       name: 'Guru Administrator',
       role: 'guru'
     });
-    console.log('Default admin created: admin / admin123');
+    console.log('Default admin created: password alal1010');
   }
 
   // Seed exercises

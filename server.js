@@ -102,6 +102,6 @@ function requireAuth(role) {
 const { initDatabase } = require('./config/database');
 initDatabase();
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });

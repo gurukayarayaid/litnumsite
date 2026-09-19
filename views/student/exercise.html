@@ -87,6 +87,43 @@
     let score = 0;
     let currentDifficulty = 1;
 
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    function playSound(type) {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      gain.gain.value = 0.3;
+
+      if (type === 'correct') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(523.25, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1);
+        osc.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.2);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + 0.4);
+      } else if (type === 'wrong') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(150, audioCtx.currentTime + 0.15);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + 0.3);
+      } else if (type === 'intro') {
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(261.63, audioCtx.currentTime);
+        osc.frequency.setValueAtTime(329.63, audioCtx.currentTime + 0.15);
+        osc.frequency.setValueAtTime(392, audioCtx.currentTime + 0.3);
+        osc.frequency.setValueAtTime(523.25, audioCtx.currentTime + 0.45);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.7);
+        osc.start(audioCtx.currentTime);
+        osc.stop(audioCtx.currentTime + 0.7);
+      }
+    }
+
     async function init() {
       const meRes = await fetch('/api/auth/me');
       const meData = await meRes.json();
@@ -135,6 +172,7 @@
         document.getElementById('category-select').style.display = 'none';
         document.getElementById('exercise-area').style.display = 'block';
 
+        playSound('intro');
         renderQuestion();
       } catch (err) {
         alert('Gagal memuat soal. Silakan coba lagi.');
@@ -234,6 +272,9 @@
 
           if (data.isCorrect) {
             totalCorrect++;
+            playSound('correct');
+          } else {
+            playSound('wrong');
           }
 
           results.push({

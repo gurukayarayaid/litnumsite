@@ -23,12 +23,8 @@
       <!-- Guru Login -->
       <form id="guru-form" class="login-form active" onsubmit="handleGuruLogin(event)">
         <div class="form-group">
-          <label for="guru-username">Username</label>
-          <input type="text" id="guru-username" class="form-control" placeholder="Masukkan username" required>
-        </div>
-        <div class="form-group">
-          <label for="guru-password">Password</label>
-          <input type="password" id="guru-password" class="form-control" placeholder="Masukkan password" required>
+          <label for="guru-password">Password Guru</label>
+          <input type="password" id="guru-password" class="form-control" placeholder="Masukkan password guru" required>
         </div>
         <button type="submit" class="login-btn">Masuk sebagai Guru</button>
       </form>
@@ -36,24 +32,29 @@
       <!-- Siswa Login -->
       <form id="siswa-form" class="login-form" onsubmit="handleSiswaLogin(event)">
         <div class="form-group">
-          <label for="siswa-nis">NIS (Nomor Induk Siswa)</label>
-          <input type="text" id="siswa-nis" class="form-control" placeholder="Masukkan NIS" required>
+          <label for="siswa-class">Kelas</label>
+          <select id="siswa-class" class="form-control" required onchange="loadStudents()">
+            <option value="">-- Pilih Kelas --</option>
+          </select>
         </div>
         <div class="form-group">
-          <label for="siswa-password">Password</label>
-          <input type="password" id="siswa-password" class="form-control" placeholder="Masukkan password" required>
+          <label for="siswa-name">Nama</label>
+          <select id="siswa-name" class="form-control" required onchange="autoFillNIS()">
+            <option value="">-- Pilih Nama --</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="siswa-nis">Password (NIS)</label>
+          <input type="password" id="siswa-nis" class="form-control" placeholder="Otomatis terisi dari NIS" required>
         </div>
         <button type="submit" class="login-btn">Masuk sebagai Siswa</button>
       </form>
-
-      <p class="login-footer">
-        Default guru: admin / admin123<br>
-        Default siswa: NIS / 123456
-      </p>
     </div>
   </div>
 
   <script>
+    let allStudents = [];
+
     function switchTab(role) {
       document.querySelectorAll('.login-tab').forEach(tab => tab.classList.remove('active'));
       document.querySelectorAll('.login-form').forEach(form => form.classList.remove('active'));
@@ -72,16 +73,62 @@
         `<div class="alert alert-${type}">${message}</div>`;
     }
 
+    async function loadClasses() {
+      try {
+        const res = await fetch('/api/auth/classes');
+        const data = await res.json();
+        const select = document.getElementById('siswa-class');
+        data.classes.forEach(c => {
+          const opt = document.createElement('option');
+          opt.value = c;
+          opt.textContent = 'Kelas ' + c;
+          select.appendChild(opt);
+        });
+      } catch (err) {
+        console.error('Gagal memuat kelas');
+      }
+    }
+
+    async function loadStudents() {
+      const kelas = document.getElementById('siswa-class').value;
+      const nameSelect = document.getElementById('siswa-name');
+      const nisInput = document.getElementById('siswa-nis');
+
+      nameSelect.innerHTML = '<option value="">-- Pilih Nama --</option>';
+      nisInput.value = '';
+
+      if (!kelas) return;
+
+      try {
+        const res = await fetch('/api/auth/students-by-class/' + kelas);
+        const data = await res.json();
+        allStudents = data.students;
+
+        data.students.forEach(s => {
+          const opt = document.createElement('option');
+          opt.value = s.nis;
+          opt.textContent = s.full_name;
+          nameSelect.appendChild(opt);
+        });
+      } catch (err) {
+        console.error('Gagal memuat data siswa');
+      }
+    }
+
+    function autoFillNIS() {
+      const nis = document.getElementById('siswa-name').value;
+      document.getElementById('siswa-nis').value = nis;
+    }
+
     async function handleGuruLogin(e) {
       e.preventDefault();
-      const username = document.getElementById('guru-username').value;
       const password = document.getElementById('guru-password').value;
 
       try {
         const res = await fetch('/api/auth/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password, role: 'guru' })
+          body: JSON.stringify({ username: 'admin', password, role: 'guru' })
         });
         const data = await res.json();
 
@@ -97,8 +144,13 @@
 
     async function handleSiswaLogin(e) {
       e.preventDefault();
-      const nis = document.getElementById('siswa-nis').value;
-      const password = document.getElementById('siswa-password').value;
+      const nis = document.getElementById('siswa-name').value;
+      const password = document.getElementById('siswa-nis').value;
+
+      if (!nis) {
+        showAlert('Pilih nama siswa terlebih dahulu');
+        return;
+      }
 
       try {
         const res = await fetch('/api/auth/login-student', {
@@ -118,12 +170,7 @@
       }
     }
 
-    // Check if already logged in
-    fetch('/api/auth/me').then(r => r.json()).then(data => {
-      if (data.user) {
-        window.location.href = data.user.role === 'guru' ? '/teacher/dashboard' : '/student/dashboard';
-      }
-    }).catch(() => {});
+    loadClasses();
   </script>
 </body>
 </html>

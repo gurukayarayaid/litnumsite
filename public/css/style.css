@@ -645,6 +645,27 @@ table tr:hover {
   color: #991b1b;
 }
 
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+}
+
+@keyframes bounce {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.option-btn.correct,
+.fill-in-input.correct {
+  animation: bounce 0.3s ease;
+}
+
+.option-btn.wrong,
+.fill-in-input.wrong {
+  animation: shake 0.3s ease;
+}
+
 .feedback-header {
   display: flex;
   align-items: center;

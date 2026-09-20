@@ -155,7 +155,7 @@
     // Check if already logged in
     var user = Auth.getUser();
     if (user) {
-      window.location.href = user.role === 'guru' ? '/teacher/dashboard.html' : '/student/dashboard.html';
+      window.location.href = user.role === 'guru' ? 'teacher/dashboard.html' : 'student/dashboard.html';
     }
   </script>
 </body>

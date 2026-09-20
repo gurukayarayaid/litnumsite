@@ -22,8 +22,10 @@ const Auth = {
   requireRole(role) {
     const user = this.getUser();
     if (!user || user.role !== role) {
-      const depth = (window.location.pathname.match(/\//g) || []).length;
-      window.location.href = depth > 2 ? '../login.html' : 'login.html';
+      // Halaman terproteksi selalu berada di subfolder (teacher/ atau student/),
+      // jadi ini bekerja baik di root maupun subpath GitHub Pages (mis. /litnumsite/).
+      const inSubfolder = /\/(teacher|student)\//.test(window.location.pathname);
+      window.location.href = inSubfolder ? '../login.html' : 'login.html';
       return false;
     }
     return true;

@@ -4,13 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login - Literasi Numerasi</title>
-  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="css/style.css">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="/js/firebase-config.js"></script>
-  <script src="/js/auth.js"></script>
-  <script src="/js/db.js"></script>
+  <script src="js/firebase-config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/db.js"></script>
 </head>
 <body>
   <div class="login-container">
@@ -128,7 +128,7 @@
 
       try {
         await Auth.loginGuru(password);
-        window.location.href = '/teacher/dashboard.html';
+        window.location.href = 'teacher/dashboard.html';
       } catch (err) {
         showAlert(err.message, 'danger');
       }
@@ -146,7 +146,7 @@
 
       try {
         await Auth.loginSiswa(nis, password);
-        window.location.href = '/student/dashboard.html';
+        window.location.href = 'student/dashboard.html';
       } catch (err) {
         showAlert(err.message, 'danger');
       }
@@ -155,7 +155,7 @@
     // Check if already logged in
     var user = Auth.getUser();
     if (user) {
-      window.location.href = user.role === 'guru' ? '/teacher/dashboard.html' : '/student/dashboard.html';
+      window.location.href = user.role === 'guru' ? 'teacher/dashboard.html' : 'student/dashboard.html';
     }
   </script>
 </body>

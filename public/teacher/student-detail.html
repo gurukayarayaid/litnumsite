@@ -19,14 +19,12 @@
         <div class="subtitle">Panel Guru</div>
       </div>
       <nav class="sidebar-nav">
-        <a href="dashboard.html"><span class="icon">📊</span> Dashboard</a>
-        <a href="students.html" class="active"><span class="icon">👥</span> Siswa</a>
-        <a href="exercises.html"><span class="icon">📝</span> Soal</a>
-        <a href="reports.html"><span class="icon">📈</span> Laporan</a>
+        <a href="dashboard.html"><span class="icon">📊</span><span class="label">Dashboard</span></a>
+        <a href="students.html" class="active"><span class="icon">👥</span><span class="label">Siswa</span></a>
+        <a href="exercises.html"><span class="icon">📝</span><span class="label">Soal</span></a>
+        <a href="reports.html"><span class="icon">📈</span><span class="label">Laporan</span></a>
+        <a href="#" onclick="Auth.logout(); window.location.href='../login.html'"><span class="icon">🚪</span><span class="label">Keluar</span></a>
       </nav>
-      <div style="padding: 20px; margin-top: auto; border-top: 1px solid var(--border);">
-        <button class="btn btn-outline" style="width: 100%;" onclick="Auth.logout(); window.location.href='../login.html'">Keluar</button>
-      </div>
     </aside>
 
     <main class="main-content">

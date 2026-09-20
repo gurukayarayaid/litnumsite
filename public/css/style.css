@@ -35,24 +35,26 @@ body {
 
 /* Layout */
 .app-container {
-  display: flex;
+  display: block;
   min-height: 100vh;
 }
 
+/* Bottom navigation — dipakai di semua ukuran layar (Android & Desktop) */
 .sidebar {
-  width: 260px;
-  background: var(--bg-card);
-  border-right: 1px solid var(--border);
-  padding: 20px 0;
   position: fixed;
-  top: 0;
-  left: 0;
   bottom: 0;
-  overflow-y: auto;
+  left: 0;
+  width: 100%;
+  background: var(--bg-card);
+  border-top: 1px solid var(--border);
+  padding: 0;
+  padding-bottom: env(safe-area-inset-bottom);
   z-index: 100;
+  box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.06);
 }
 
 .sidebar-header {
+  display: none;
   padding: 0 20px 20px;
   border-bottom: 1px solid var(--border);
   margin-bottom: 10px;
@@ -72,16 +74,25 @@ body {
   margin-top: 4px;
 }
 
-.sidebar-nav a {
+.sidebar-nav {
   display: flex;
+  width: 100%;
+}
+
+.sidebar-nav a {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 12px 20px;
+  justify-content: center;
+  gap: 2px;
+  padding: 8px 4px 9px;
   color: var(--text-secondary);
   text-decoration: none;
-  font-size: 0.9rem;
+  font-size: 0.72rem;
+  line-height: 1.2;
+  text-align: center;
   transition: all 0.2s;
-  border-left: 3px solid transparent;
 }
 
 .sidebar-nav a:hover {
@@ -92,18 +103,18 @@ body {
 .sidebar-nav a.active {
   background: #eff6ff;
   color: var(--primary);
-  border-left-color: var(--primary);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .sidebar-nav a .icon {
-  font-size: 1.1rem;
+  font-size: 1.3rem;
+  line-height: 1;
 }
 
 .main-content {
   flex: 1;
-  margin-left: 260px;
-  padding: 24px;
+  margin-left: 0;
+  padding: 24px 24px 96px;
   min-height: 100vh;
 }
 
@@ -718,40 +729,8 @@ table tr:hover {
 
 /* Responsive */
 @media (max-width: 768px) {
-  .sidebar {
-    width: 100%;
-    position: fixed;
-    top: auto;
-    bottom: 0;
-    left: 0;
-    height: auto;
-    border-right: none;
-    border-top: 1px solid var(--border);
-    padding: 0;
-    z-index: 100;
-  }
-
-  .sidebar-header {
-    display: none;
-  }
-
-  .sidebar-nav {
-    display: flex;
-    justify-content: space-around;
-  }
-
-  .sidebar-nav a {
-    flex-direction: column;
-    padding: 10px;
-    font-size: 0.7rem;
-    gap: 4px;
-    border-left: none;
-  }
-
   .main-content {
-    margin-left: 0;
-    margin-bottom: 60px;
-    padding: 16px;
+    padding: 16px 16px 88px;
   }
 
   .stats-grid {

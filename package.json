@@ -4,7 +4,8 @@
   "description": "Website Latihan Literasi-Numerasi Interaktif untuk Kelas 3 SD (Static + Firebase)",
   "main": "public/index.html",
   "scripts": {
-    "seed": "node scripts/seed.js"
+    "seed": "node scripts/seed.js",
+    "verify": "node scripts/verify-static.js"
   },
   "dependencies": {
     "firebase-admin": "^12.0.0"
